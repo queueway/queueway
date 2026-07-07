@@ -8,7 +8,10 @@ export type { IBroker } from './broker/IBroker';
 
 export { PostgreSQLStore } from './store/PostgreSQLStore';
 export { SQLiteStore } from './store/SQLiteStore';
+export { InMemoryStore } from './store/InMemoryStore';
 export type { IStore } from './store/IStore';
+
+export { createServer, startServer } from './server/createServer';
 
 export { RetryManager } from './retry/RetryManager';
 export { DLQManager } from './dlq/DLQManager';

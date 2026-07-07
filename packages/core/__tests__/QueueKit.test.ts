@@ -25,4 +25,20 @@ describe('QueueKit', () => {
     await q.publish('order.created', { orderId: 42 });
     expect(received).toEqual([{ orderId: 42 }]);
   });
+
+  it('should track job stats after processing', async () => {
+    const q = new QueueKit({ broker: 'in-memory', store: 'in-memory' });
+    await q.start();
+
+    q.subscribe('stats.test', async () => {
+      /* succeeds */
+    });
+
+    await q.publish('stats.test', {});
+
+    // publish triggers subscribe handlers synchronously via InMemoryBroker
+    const stats = await q.getStats();
+    expect(stats.total).toBe(1);
+    expect(stats.jobs.completed).toBe(1);
+  });
 });
