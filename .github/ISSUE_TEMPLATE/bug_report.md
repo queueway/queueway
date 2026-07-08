@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a problem with QueueKit
+about: Report a problem with Queueway
 ---
 
 ## Bug Report
@@ -19,4 +19,4 @@ about: Report a problem with QueueKit
 
 ### Environment
 - Node version:
-- QueueKit version:
+- Queueway version:

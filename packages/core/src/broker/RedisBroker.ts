@@ -1,6 +1,6 @@
-import Redis from "ioredis";
-import { IBroker } from "./IBroker";
-import { Job } from "../types";
+import Redis from 'ioredis';
+import { IBroker } from './IBroker';
+import { Job } from '../types';
 
 /**
  * Redis-backed broker using Lists (LPUSH/BRPOP) — a lightweight
@@ -11,25 +11,22 @@ export class RedisBroker implements IBroker {
   private publisherClient: Redis | null = null;
   private subscriberClients: Redis[] = [];
   private polling = true;
-  private readonly prefix = "queuekit:queue:";
+  private readonly prefix = 'queueway:queue:';
 
   private getUrl(): string {
-    return process.env.REDIS_URL || "redis://localhost:6379";
+    return process.env.REDIS_URL || 'redis://localhost:6379';
   }
 
   async connect(): Promise<void> {
     this.publisherClient = new Redis(this.getUrl());
-    console.log("✅ Redis connected");
+    console.log('✅ Redis connected');
   }
 
   async publish(eventName: string, job: Job): Promise<void> {
     if (!this.publisherClient) {
-      throw new Error("Redis not connected. Call connect() first.");
+      throw new Error('Redis not connected. Call connect() first.');
     }
-    await this.publisherClient.lpush(
-      this.prefix + eventName,
-      JSON.stringify(job),
-    );
+    await this.publisherClient.lpush(this.prefix + eventName, JSON.stringify(job));
   }
 
   subscribe(eventName: string, handler: (job: Job) => Promise<void>): void {

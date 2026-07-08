@@ -1,7 +1,7 @@
 {
-  "name": "@queuekit/dashboard",
+  "name": "@queueway/dashboard",
   "version": "0.0.1",
-  "description": "QueueKit dashboard (Next.js App Router + shadcn/ui)",
+  "description": "Queueway dashboard (Next.js App Router + shadcn/ui)",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",

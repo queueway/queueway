@@ -1,9 +1,9 @@
-# Contributing to QueueKit
+# Contributing to Queueway
 
 ## Getting Started
 
 1. Fork the repo
-2. Clone: `git clone https://github.com/your-username/queuekit.git`
+2. Clone: `git clone https://github.com/your-username/queueway.git`
 3. Install: `npm install`
 4. Create branch: `git checkout -b feature/amazing-feature`
 5. Make changes

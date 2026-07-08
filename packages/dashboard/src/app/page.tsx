@@ -50,16 +50,16 @@ export default function DashboardPage() {
     async function refresh() {
       try {
         const [statsRes, jobsRes, healthRes] = await Promise.all([
-          fetch('/queuekit/stats').then((r) => r.json()),
-          fetch('/queuekit/jobs?limit=25').then((r) => r.json()),
-          fetch('/queuekit/health').then((r) => r.json()),
+          fetch('/queueway/stats').then((r) => r.json()),
+          fetch('/queueway/jobs?limit=25').then((r) => r.json()),
+          fetch('/queueway/health').then((r) => r.json()),
         ]);
         setStats(statsRes);
         setJobs(jobsRes);
         setHealth(healthRes);
         setError(null);
       } catch (err: any) {
-        setError(err.message ?? 'Could not reach QueueKit API');
+        setError(err.message ?? 'Could not reach Queueway API');
       }
     }
 
@@ -71,14 +71,14 @@ export default function DashboardPage() {
   return (
     <main className="mx-auto max-w-6xl p-6 space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">🚀 QueueKit Dashboard</h1>
+        <h1 className="text-xl font-semibold">🚀 Queueway Dashboard</h1>
         <p className="text-sm text-muted-foreground">Auto-refreshes every 3 seconds</p>
       </div>
 
       {error && (
         <Card className="border-red-900 bg-red-950/30">
           <CardContent className="p-4 text-sm text-red-400">
-            Could not reach QueueKit API: {error} — make sure the core server is running on port 3000.
+            Could not reach Queueway API: {error} — make sure the core server is running on port 3000.
           </CardContent>
         </Card>
       )}

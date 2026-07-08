@@ -6,13 +6,13 @@ export class PostgreSQLStore implements IStore {
   private pool: Pool;
 
   constructor() {
-    const url = process.env.DATABASE_URL || 'postgres://localhost/queuekit';
+    const url = process.env.DATABASE_URL || 'postgres://localhost/queueway';
     this.pool = new Pool({ connectionString: url });
   }
 
   async initialize(): Promise<void> {
     const query = `
-      CREATE TABLE IF NOT EXISTS queuekit_jobs (
+      CREATE TABLE IF NOT EXISTS queueway_jobs (
         id VARCHAR(255) PRIMARY KEY,
         event_name VARCHAR(255) NOT NULL,
         data JSONB NOT NULL,
@@ -22,8 +22,8 @@ export class PostgreSQLStore implements IStore {
         updated_at TIMESTAMP DEFAULT NOW()
       );
 
-      CREATE INDEX IF NOT EXISTS idx_status ON queuekit_jobs(status);
-      CREATE INDEX IF NOT EXISTS idx_event ON queuekit_jobs(event_name);
+      CREATE INDEX IF NOT EXISTS idx_status ON queueway_jobs(status);
+      CREATE INDEX IF NOT EXISTS idx_event ON queueway_jobs(event_name);
     `;
 
     await this.pool.query(query);
@@ -32,7 +32,7 @@ export class PostgreSQLStore implements IStore {
 
   async saveJob(job: Job): Promise<void> {
     const query = `
-      INSERT INTO queuekit_jobs (id, event_name, data, status, attempts)
+      INSERT INTO queueway_jobs (id, event_name, data, status, attempts)
       VALUES ($1, $2, $3, $4, $5)
     `;
 
@@ -47,7 +47,7 @@ export class PostgreSQLStore implements IStore {
 
   async getJob(jobId: string): Promise<Job | null> {
     const result = await this.pool.query(
-      'SELECT * FROM queuekit_jobs WHERE id = $1',
+      'SELECT * FROM queueway_jobs WHERE id = $1',
       [jobId]
     );
 
@@ -66,13 +66,13 @@ export class PostgreSQLStore implements IStore {
 
   async updateJob(jobId: string, status: string): Promise<void> {
     await this.pool.query(
-      'UPDATE queuekit_jobs SET status = $1, updated_at = NOW() WHERE id = $2',
+      'UPDATE queueway_jobs SET status = $1, updated_at = NOW() WHERE id = $2',
       [status, jobId]
     );
   }
 
   async getAllJobs(status?: string, limit?: number): Promise<Job[]> {
-    let query = 'SELECT * FROM queuekit_jobs';
+    let query = 'SELECT * FROM queueway_jobs';
     const params: any[] = [];
 
     if (status) {

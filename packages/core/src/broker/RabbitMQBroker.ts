@@ -5,7 +5,7 @@ import { Job } from '../types';
 export class RabbitMQBroker implements IBroker {
   private connection: amqp.ChannelModel | null = null;
   private channel: amqp.Channel | null = null;
-  private readonly exchange = 'queuekit';
+  private readonly exchange = 'queueway';
 
   async connect(): Promise<void> {
     const url = process.env.RABBITMQ_URL || 'amqp://localhost';
@@ -29,7 +29,7 @@ export class RabbitMQBroker implements IBroker {
   subscribe(eventName: string, handler: (job: Job) => Promise<void>): void {
     if (!this.channel) throw new Error('Channel not initialized. Call connect() first.');
 
-    const queueName = `queuekit.${eventName}`;
+    const queueName = `queueway.${eventName}`;
     this.channel.assertQueue(queueName, { durable: true }).then(() => {
       this.channel!.bindQueue(queueName, this.exchange, eventName);
       this.channel!.consume(queueName, async (msg: amqp.ConsumeMessage | null) => {

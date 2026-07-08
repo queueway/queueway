@@ -1,5 +1,5 @@
-export { QueueKit } from './QueueKit';
-export type { QueueKitConfig, Job, JobStatus } from './types';
+export { Queueway } from './Queueway';
+export type { QueuewayConfig, Job, JobStatus } from './types';
 
 export { InMemoryBroker } from './broker/InMemoryBroker';
 export { RabbitMQBroker } from './broker/RabbitMQBroker';
@@ -17,6 +17,6 @@ export { RetryManager } from './retry/RetryManager';
 export { DLQManager } from './dlq/DLQManager';
 export { HealthCheck } from './monitoring/HealthCheck';
 
-// Convenient default instance for `import { queue } from 'queuekit'`
-import { QueueKit } from './QueueKit';
-export const queue = new QueueKit();
+// Convenient default instance for `import { queue } from 'queueway'`
+import { Queueway } from './Queueway';
+export const queue = new Queueway();

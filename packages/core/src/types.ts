@@ -1,4 +1,4 @@
-export interface QueueKitConfig {
+export interface QueuewayConfig {
   broker: string;
   store: string;
   retry?: {

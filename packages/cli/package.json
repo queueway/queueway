@@ -1,9 +1,9 @@
 {
-  "name": "@queuekit/cli",
+  "name": "@queueway/cli",
   "version": "0.0.1",
-  "description": "QueueKit CLI",
+  "description": "Queueway CLI",
   "bin": {
-    "queuekit": "./dist/index.js"
+    "queueway": "./dist/index.js"
   },
   "main": "dist/index.js",
   "scripts": {

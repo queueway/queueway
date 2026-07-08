@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'QueueKit Dashboard',
-  description: 'Monitor your QueueKit jobs, queues, and health',
+  title: 'Queueway Dashboard',
+  description: 'Monitor your Queueway jobs, queues, and health',
 };
 
 export default function RootLayout({

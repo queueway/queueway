@@ -17,7 +17,7 @@ export async function init() {
     },
   ]);
 
-  const config = `import { defineConfig } from 'queuekit';
+  const config = `import { defineConfig } from 'queueway';
 
 export default defineConfig({
   broker: { type: '${answers.broker.toLowerCase()}' },
@@ -29,6 +29,6 @@ export default defineConfig({
 });
 `;
 
-  fs.writeFileSync('queuekit.config.ts', config);
-  console.log('✅ Config created: queuekit.config.ts');
+  fs.writeFileSync('queueway.config.ts', config);
+  console.log('✅ Config created: queueway.config.ts');
 }

@@ -2,12 +2,12 @@
  * Minimal example: publish/subscribe + expose the REST API + basic dashboard data.
  *
  * Run with: npx ts-node examples/basic-server.ts
- * Then visit: http://localhost:3000/queuekit/stats
+ * Then visit: http://localhost:3000/queueway/stats
  */
-import { QueueKit, startServer } from 'queuekit';
+import { Queueway, startServer } from 'queueway';
 
 async function main() {
-  const queue = new QueueKit({ broker: 'in-memory', store: 'in-memory' });
+  const queue = new Queueway({ broker: 'in-memory', store: 'in-memory' });
 
   queue.subscribe('email.send', async (job) => {
     console.log('Processing email job:', job.data);

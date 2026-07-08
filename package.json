@@ -1,7 +1,7 @@
 {
-  "name": "queuekit-monorepo",
+  "name": "queueway-monorepo",
   "version": "0.0.1",
-  "description": "QueueKit - Zero-Config Job Queue",
+  "description": "Queueway - Zero-Config Job Queue",
   "private": true,
   "workspaces": [
     "packages/*"

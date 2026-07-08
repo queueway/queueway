@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Queueway Dashboard</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: #0f1115; color: #e6e6e6; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .subtitle { color: #9aa0a6; font-size: 13px; margin-bottom: 24px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 32px; }
+  .card { background: #1a1d24; border: 1px solid #2a2e37; border-radius: 10px; padding: 16px; }
+  .card .label { color: #9aa0a6; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .card .value { font-size: 28px; font-weight: 600; margin-top: 4px; }
+  .pending .value { color: #f5c451; }
+  .processing .value { color: #4d9eff; }
+  .completed .value { color: #43c98b; }
+  .failed .value { color: #ef5b5b; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #2a2e37; }
+  th { color: #9aa0a6; font-weight: 500; }
+  .status-pill { padding: 2px 8px; border-radius: 999px; font-size: 11px; display: inline-block; }
+  .status-completed { background: #1c3b2e; color: #43c98b; }
+  .status-failed { background: #3b1f1f; color: #ef5b5b; }
+  .status-pending { background: #3b3320; color: #f5c451; }
+  .status-processing { background: #1c2c3b; color: #4d9eff; }
+  .status-retrying { background: #2c1c3b; color: #b06dff; }
+  .empty { color: #6b7280; padding: 24px; text-align: center; }
+  .health { font-size: 12px; color: #6b7280; margin-top: 24px; }
+  .health.up::before { content: "● "; color: #43c98b; }
+</style>
+</head>
+<body>
+  <h1>🚀 Queueway Dashboard</h1>
+  <div class="subtitle">Auto-refreshes every 3 seconds</div>
+
+  <div class="cards" id="cards"></div>
+
+  <table>
+    <thead>
+      <tr><th>Job ID</th><th>Event</th><th>Status</th><th>Attempts</th><th>Created</th></tr>
+    </thead>
+    <tbody id="jobs"></tbody>
+  </table>
+
+  <div class="health" id="health">Checking health…</div>
+
+<script>
+  const statusOrder = ['pending', 'processing', 'completed', 'failed', 'retrying', 'archived'];
+
+  async function refresh() {
+    try {
+      const [stats, jobs, health] = await Promise.all([
+        fetch('/queueway/stats').then(r => r.json()),
+        fetch('/queueway/jobs?limit=25').then(r => r.json()),
+        fetch('/queueway/health').then(r => r.json()),
+      ]);
+
+      const cardsEl = document.getElementById('cards');
+      cardsEl.innerHTML = ['pending', 'processing', 'completed', 'failed'].map(status => `
+        <div class="card ${status}">
+          <div class="label">${status}</div>
+          <div class="value">${stats.jobs?.[status] ?? 0}</div>
+        </div>
+      `).join('');
+
+      const jobsEl = document.getElementById('jobs');
+      if (!jobs.length) {
+        jobsEl.innerHTML = '<tr><td colspan="5" class="empty">No jobs yet — publish something!</td></tr>';
+      } else {
+        jobsEl.innerHTML = jobs.map(job => `
+          <tr>
+            <td><code>${job.id.slice(0, 8)}…</code></td>
+            <td>${job.eventName}</td>
+            <td><span class="status-pill status-${job.status}">${job.status}</span></td>
+            <td>${job.attempts}</td>
+            <td>${new Date(job.createdAt).toLocaleTimeString()}</td>
+          </tr>
+        `).join('');
+      }
+
+      const healthEl = document.getElementById('health');
+      healthEl.className = 'health ' + (health.status === 'healthy' ? 'up' : '');
+      healthEl.textContent = `Status: ${health.status} · Last checked: ${new Date(health.timestamp).toLocaleTimeString()}`;
+    } catch (err) {
+      document.getElementById('health').textContent = 'Could not reach Queueway API: ' + err.message;
+    }
+  }
+
+  refresh();
+  setInterval(refresh, 3000);
+</script>
+</body>
+</html>

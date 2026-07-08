@@ -2,4 +2,4 @@
 
 Be respectful. Be kind. Include everyone.
 
-For violations, contact: conduct@queuekit.dev
+For violations, contact: conduct@queueway.dev
