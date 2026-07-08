@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs";
 import inquirer from "inquirer";
-import { fork, spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess } from "child_process";
 import {
   pidFilePath,
   logFilePath,
@@ -131,9 +131,14 @@ function runWatchdog(port: string, isDaemonChild: boolean) {
 
   const launch = () => {
     console.log("🚀 Starting Queueway server...");
-    child = fork(path.join(__dirname, "..", "server-bootstrap.js"), [], {
-      stdio: "inherit",
-    });
+    child = spawn(
+      process.execPath,
+      [path.join(__dirname, "..", "server-bootstrap.js")],
+      {
+        stdio: "inherit",
+        windowsHide: true,
+      },
+    );
 
     child.on("exit", (code, signal) => {
       if (

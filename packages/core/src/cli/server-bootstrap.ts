@@ -5,7 +5,7 @@
  */
 
 async function main() {
-  const { Queueway, startServer } = require("queueway");
+  const { Queueway, startServer } = require("../index");
 
   const configPath = process.env.QUEUEWAY_CONFIG_PATH;
   const jobsPath = process.env.QUEUEWAY_JOBS_PATH;
