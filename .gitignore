@@ -7,3 +7,5 @@ dist/
 coverage/
 lerna-debug.log
 .turbo/
+.next/
+*.db
