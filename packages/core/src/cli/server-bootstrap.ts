@@ -6,6 +6,10 @@
 
 import { logger } from "../logging/Logger";
 
+function errMeta(err: any) {
+  return { error: err?.message ?? String(err), stack: err?.stack };
+}
+
 async function main() {
   const { Queueway, startServer } = require("../index");
 
@@ -33,7 +37,7 @@ async function main() {
   }
 
   await queue.start();
-  startServer(queue, port);
+  await startServer(queue, port);
 
   logger.info(
     `✅ Queueway running — dashboard/API at http://localhost:${port}`,
@@ -41,15 +45,15 @@ async function main() {
 }
 
 main().catch((err) => {
-  logger.error("❌ Queueway server crashed during startup:", err);
+  logger.error("❌ Queueway server crashed during startup", errMeta(err));
   process.exit(1); // non-zero exit tells the parent process to auto-restart
 });
 
 process.on("uncaughtException", (err: any) => {
-  logger.error("❌ Uncaught exception:", err);
+  logger.error("❌ Uncaught exception", errMeta(err));
   process.exit(1);
 });
 process.on("unhandledRejection", (err: any) => {
-  logger.error("❌ Unhandled rejection:", err);
+  logger.error("❌ Unhandled rejection", errMeta(err));
   process.exit(1);
 });

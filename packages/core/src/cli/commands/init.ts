@@ -16,7 +16,7 @@ const JOBS_TEMPLATE = `// queueway.jobs.js
 module.exports = function registerJobs(queue) {
   // Example:
   // queue.subscribe('email.send', async (job) => {
-  //   logger.info('Sending email:', job.data);
+  //   console.log('Sending email:', job.data);
   // });
 };
 `;

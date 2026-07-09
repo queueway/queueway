@@ -10,6 +10,7 @@ import { PostgreSQLStore } from "./store/PostgreSQLStore";
 import { SQLiteStore } from "./store/SQLiteStore";
 import { RetryManager } from "./retry/RetryManager";
 import { DLQManager } from "./dlq/DLQManager";
+import { HealthCheck } from "./monitoring/HealthCheck";
 import { logger } from "./logging/Logger";
 
 export class Queueway {
@@ -18,6 +19,7 @@ export class Queueway {
   private store: IStore;
   private retryManager: RetryManager;
   private dlqManager: DLQManager;
+  private healthCheck: HealthCheck;
 
   constructor(config?: Partial<QueuewayConfig>) {
     // Default production-safe config
@@ -39,6 +41,7 @@ export class Queueway {
       this.config.retry?.maxDelay,
     );
     this.dlqManager = new DLQManager(this.store);
+    this.healthCheck = new HealthCheck(this.broker, this.store);
   }
 
   private createBroker(type: string): IBroker {
@@ -169,5 +172,10 @@ export class Queueway {
     job.status = "pending";
     job.attempts = 0;
     await this.broker.publish(job.eventName, job);
+  }
+
+  /** Real health check — actually pings the broker + database right now. */
+  async getHealth() {
+    return this.healthCheck.getStatus();
   }
 }

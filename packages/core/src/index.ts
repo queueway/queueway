@@ -1,3 +1,8 @@
+// Auto-load .env from the project root — must run before anything below
+// reads process.env (SMTP config, ports, dashboard auth, etc).
+import dotenv from "dotenv";
+dotenv.config();
+
 export { Queueway } from "./Queueway";
 export type { QueuewayConfig, Job, JobStatus } from "./types";
 export { Logger, logger } from './logging/Logger';

@@ -2,7 +2,7 @@
  * Minimal example: publish/subscribe + expose the REST API + basic dashboard data.
  *
  * Run with: npx ts-node examples/basic-server.ts
- * Then visit: http://localhost:3000/queueway/stats
+ * Then visit: http://localhost:4287/queueway/stats
  */
 import { Queueway, startServer } from "queueway";
 
@@ -14,7 +14,7 @@ async function main() {
   });
 
   await queue.start();
-  startServer(queue, 3000);
+  await startServer(queue, 4287);
 
   // Simulate some traffic
   await queue.publish("email.send", {

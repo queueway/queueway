@@ -50,7 +50,7 @@ export class RedisBroker implements IBroker {
           await handler(job);
         } catch (err: any) {
           if (!this.polling) break;
-          logger.error(`RedisBroker error on "${eventName}":`, err);
+          logger.error(`RedisBroker error on "${eventName}"`, { error: err?.message ?? String(err), stack: err?.stack });
         }
       }
     };
@@ -63,6 +63,19 @@ export class RedisBroker implements IBroker {
     if (this.publisherClient) await this.publisherClient.quit();
     for (const client of this.subscriberClients) {
       await client.quit();
+    }
+  }
+
+  async checkHealth(): Promise<import("../types").ComponentHealth> {
+    if (!this.publisherClient) {
+      return { status: "down", error: "Not connected" };
+    }
+    try {
+      const start = Date.now();
+      await this.publisherClient.ping();
+      return { status: "up", latency: Date.now() - start };
+    } catch (err: any) {
+      return { status: "down", error: err?.message ?? String(err) };
     }
   }
 }

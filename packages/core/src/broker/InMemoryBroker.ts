@@ -1,9 +1,8 @@
 import { IBroker } from "./IBroker";
-import { Job } from "../types";
+import { Job, ComponentHealth } from "../types";
 import { logger } from "../logging/Logger";
 
 export class InMemoryBroker implements IBroker {
-  private jobs: Map<string, Job[]> = new Map();
   private handlers: Map<string, Array<(job: Job) => Promise<void>>> = new Map();
 
   async connect(): Promise<void> {
@@ -11,11 +10,6 @@ export class InMemoryBroker implements IBroker {
   }
 
   async publish(eventName: string, job: Job): Promise<void> {
-    if (!this.jobs.has(eventName)) {
-      this.jobs.set(eventName, []);
-    }
-    this.jobs.get(eventName)!.push(job);
-
     const handlers = this.handlers.get(eventName) || [];
     for (const handler of handlers) {
       await handler(job);
@@ -31,5 +25,10 @@ export class InMemoryBroker implements IBroker {
 
   async disconnect(): Promise<void> {
     // no-op
+  }
+
+  async checkHealth(): Promise<ComponentHealth> {
+    // Nothing external to check — if this process is running, it's up.
+    return { status: "up" };
   }
 }

@@ -1,12 +1,11 @@
 {
   "name": "@queueway/dashboard",
   "version": "0.0.1",
-  "description": "Queueway dashboard (Next.js App Router + shadcn/ui)",
+  "description": "Queueway dashboard (Next.js, statically exported and bundled into the core package — served automatically by `queueway start`). The 'dev' script is only for iterating on the UI locally.",
   "private": true,
   "scripts": {
     "dev": "next dev -p 4288",
     "build": "next build",
-    "start": "next start -p 4288",
     "lint": "next lint"
   },
   "dependencies": {
@@ -16,7 +15,8 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "tailwind-merge": "^2.2.0",
-    "lucide-react": "^0.363.0"
+    "lucide-react": "^0.363.0",
+    "next-themes": "^0.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

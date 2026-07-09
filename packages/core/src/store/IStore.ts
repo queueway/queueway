@@ -1,4 +1,4 @@
-import { Job } from "../types";
+import { Job, ComponentHealth } from "../types";
 
 export interface IStore {
   initialize(): Promise<void>;
@@ -14,4 +14,6 @@ export interface IStore {
    * nothing to recover since the store itself started empty this run.
    */
   recoverStuckJobs(): Promise<Job[]>;
+  /** Real, live check — actually verifies the database connection is working right now. */
+  checkHealth(): Promise<ComponentHealth>;
 }

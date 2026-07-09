@@ -57,4 +57,8 @@ export class InMemoryStore implements IStore {
     // this run — there's no "previous state" for an in-memory store to lose.
     return [];
   }
+
+  async checkHealth(): Promise<import("../types").ComponentHealth> {
+    return { status: "up" };
+  }
 }

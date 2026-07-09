@@ -10,3 +10,5 @@ lerna-debug.log
 .next/
 *.db
 .queueway/
+packages/dashboard/out/
+packages/core/public/

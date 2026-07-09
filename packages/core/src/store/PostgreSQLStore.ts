@@ -135,4 +135,14 @@ export class PostgreSQLStore implements IStore {
       createdAt: row.created_at,
     }));
   }
+
+  async checkHealth(): Promise<import("../types").ComponentHealth> {
+    try {
+      const start = Date.now();
+      await this.pool.query("SELECT 1");
+      return { status: "up", latency: Date.now() - start };
+    } catch (err: any) {
+      return { status: "down", error: err?.message ?? String(err) };
+    }
+  }
 }

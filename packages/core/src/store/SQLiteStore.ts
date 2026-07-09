@@ -151,4 +151,17 @@ export class SQLiteStore implements IStore {
       );
     });
   }
+
+  async checkHealth(): Promise<import("../types").ComponentHealth> {
+    return new Promise((resolve) => {
+      const start = Date.now();
+      this.db.get("SELECT 1", (err) => {
+        if (err) {
+          resolve({ status: "down", error: err.message });
+        } else {
+          resolve({ status: "up", latency: Date.now() - start });
+        }
+      });
+    });
+  }
 }

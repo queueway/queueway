@@ -1,6 +1,12 @@
 export type BrokerType = "in-memory" | "rabbitmq" | "redis";
 export type StoreType = "in-memory" | "sqlite" | "postgres";
 
+export interface ComponentHealth {
+  status: "up" | "down";
+  latency?: number;
+  error?: string;
+}
+
 export interface QueuewayConfig {
   broker: BrokerType;
   store: StoreType;

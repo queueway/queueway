@@ -5,7 +5,7 @@ import { logger } from "../../logging/Logger";
  * and prints a human-readable health + stats summary.
  */
 export async function health(
-  url = process.env.QUEUEWAY_API_URL || "http://localhost:3000",
+  url = process.env.QUEUEWAY_API_URL || "http://localhost:4287",
 ) {
   try {
     const [healthRes, statsRes]: [any, any] = await Promise.all([
