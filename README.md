@@ -63,6 +63,28 @@ main();
 
 `queue.subscribe(eventName, handler)` registers what should happen when a job of that type runs. `queue.publish(eventName, data)` enqueues one. Both calls need to be in the **same running process** while using the In-Memory broker — see [Brokers & Stores](#-brokers--stores) for why, and what changes once Redis/RabbitMQ are production-ready.
 
+Want the dashboard + REST API running alongside your own app too, without the CLI? Pass `{ withServer: true }`:
+
+```javascript
+await queue.start({ withServer: true, port: 4287 });
+```
+
+This does everything `npx queueway start` does — including auto-loading `queueway.jobs.js` and printing reachable URLs (localhost, LAN, and public IP if detected) — **except** background mode and auto-heal, which need a separate supervisor process watching this one (see the table below).
+
+### Which command should I use?
+
+| | `queue.start()` (embedded in your app) | `npx queueway start` (standalone CLI) |
+|---|---|---|
+| Runs inside your app's own process | ✅ — direct access to your app's own variables/functions from job handlers | ❌ — runs as a separate process, isolated |
+| HTTP API + dashboard | Only with `{ withServer: true }` | ✅ always |
+| Auto-heal (restarts itself if it crashes) | ❌ — use PM2/systemd/Docker around your *whole* app instead | ✅ built in |
+| Background mode | ❌ | ✅ |
+| Best for | Adding a queue to an app you already have (Express, etc.) where job handlers need tight access to your app's own state | Running the queue as its own standalone service, with zero extra code |
+
+**Rule of thumb:** if you're bolting a queue onto an *existing* app, use `queue.start()` (add `{ withServer: true }` if you also want the dashboard). If you want the queue to just run and manage itself with no app code of your own, use `npx queueway start`.
+
+> ⚠️ **Don't run both for the same project at the same time.** If your own script already calls `queue.start({ withServer: true })` on port 4287 (or already has the SQLite files open), and you *also* run `npx queueway start` in the same folder, they'll either collide on the port (`EADDRINUSE`) or contend over the same SQLite files. Pick one way to run your app, not both.
+
 ---
 
 ## 📊 Dashboard
