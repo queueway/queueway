@@ -34,3 +34,19 @@ export interface Job {
   attempts: number;
   createdAt: Date;
 }
+
+/** Controls how `IStore.recoverStuckJobs()` decides what is actually stuck. */
+export interface RecoverOptions {
+  /**
+   * Whether 'pending' jobs count as lost. True for brokers that hold the
+   * queue in this process (in-memory) — when the process dies, so does the
+   * queue. False for external brokers (Redis/RabbitMQ), which still hold
+   * the job themselves; re-publishing it would deliver it twice.
+   */
+  includePending?: boolean;
+  /**
+   * How long a worker can go without a heartbeat before it's presumed dead
+   * and its in-flight jobs may be taken over by someone else.
+   */
+  staleAfterMs?: number;
+}

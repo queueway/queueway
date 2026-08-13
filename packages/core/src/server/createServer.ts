@@ -9,11 +9,37 @@ import { getLocalNetworkIPs, getPublicIP } from "./networkInfo";
 
 /** Wraps an async route handler so thrown/rejected errors become a 500
  * response instead of an unhandled rejection that could crash the process. */
+/** Connection-level failures: the store is unreachable, not the code broken. */
+function isUnreachable(err: any): boolean {
+  const text = `${err?.code ?? ""} ${err?.message ?? ""} ${err?.errors?.[0]?.code ?? ""}`;
+  return /ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND|EHOSTUNREACH|Connection terminated|terminating connection|timeout/i.test(
+    text,
+  );
+}
+
 function asyncRoute(
   fn: (req: Request, res: Response) => Promise<void>
 ) {
   return (req: Request, res: Response, next: NextFunction) => {
     fn(req, res).catch((err) => {
+      // A database that's down is an operational condition, not a bug — log it
+      // as a warning and answer with 503 so the dashboard can say "Database
+      // down" instead of dying on a 500 with a stack trace behind it.
+      if (isUnreachable(err)) {
+        logger.warn(`${req.method} ${req.path} — store unreachable`, {
+          // AggregateError (which is what ECONNREFUSED arrives as) has an
+          // empty message; the useful detail is on the nested errors.
+          error: err?.message || err?.errors?.[0]?.message || err?.code || String(err),
+        });
+        if (!res.headersSent) {
+          res.status(503).json({
+            error: "Store unavailable",
+            detail: "The database or broker is unreachable. Retrying automatically.",
+          });
+        }
+        return;
+      }
+
       logger.error(`API error on ${req.method} ${req.path}`, { error: String(err), stack: err?.stack });
       if (!res.headersSent) {
         res.status(500).json({ error: "Internal server error" });
@@ -46,10 +72,24 @@ export async function createServer(queue: Queueway): Promise<Express> {
   // Everything under /queueway/* requires a logged-in session.
   app.use("/queueway", requireAuth(authStore));
 
-  app.get("/queueway/health", asyncRoute(async (_req, res) => {
-    const status = await queue.getHealth();
-    res.status(status.status === 'healthy' ? 200 : 503).json(status);
-  }));
+  app.get("/queueway/health", async (_req, res) => {
+    // Deliberately not wrapped: health is the one route that must always
+    // answer, especially when the store is down.
+    try {
+      const status = await queue.getHealth();
+      res.status(status.status === "healthy" ? 200 : 503).json(status);
+    } catch (err: any) {
+      res.status(503).json({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        components: {
+          broker: { status: "down", error: "Health check failed" },
+          database: { status: "down", error: err?.message ?? String(err) },
+          api: { status: "up" },
+        },
+      });
+    }
+  });
 
   app.get("/queueway/stats", asyncRoute(async (_req, res) => {
     res.json(await queue.getStats());

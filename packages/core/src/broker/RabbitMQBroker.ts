@@ -4,6 +4,8 @@ import { Job } from "../types";
 import { logger } from "../logging/Logger";
 
 export class RabbitMQBroker implements IBroker {
+  /** Jobs sit in a durable RabbitMQ queue, outside this process. */
+  readonly retainsPendingJobs = true;
   private connection: amqp.ChannelModel | null = null;
   private channel: amqp.Channel | null = null;
   private readonly exchange = "queueway";
@@ -15,7 +17,23 @@ export class RabbitMQBroker implements IBroker {
   async connect(): Promise<void> {
     const url = process.env.RABBITMQ_URL || "amqp://localhost";
     this.connection = await amqp.connect(url);
+
+    // amqplib does not reconnect by itself, and it emits 'error' on the
+    // connection and channel when the broker disappears. Unhandled, those
+    // events end the process. Listening keeps the app alive; genuine
+    // reconnection is still a gap and is tracked for the RabbitMQ milestone.
+    this.connection.on("error", (err: Error) =>
+      logger.warn("⚠️  RabbitMQ connection error", { error: err.message }),
+    );
+    this.connection.on("close", () =>
+      logger.warn("⚠️  RabbitMQ connection closed — jobs will not be delivered until it returns"),
+    );
+
     this.channel = await this.connection.createChannel();
+    this.channel.on("error", (err: Error) =>
+      logger.warn("⚠️  RabbitMQ channel error", { error: err.message }),
+    );
+    this.channel.on("close", () => logger.warn("⚠️  RabbitMQ channel closed"));
     await this.channel.assertExchange(this.exchange, "topic", {
       durable: true,
     });

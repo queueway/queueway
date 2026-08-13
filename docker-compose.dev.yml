@@ -1,0 +1,67 @@
+# Queueway — local testing environment (Milestone 2)
+# NOT a production config: passwords are plain, ports are exposed on localhost.
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#   docker compose -f docker-compose.dev.yml ps      # wait until all are healthy
+#   docker compose -f docker-compose.dev.yml down    # stop (keeps volumes/data)
+#   docker compose -f docker-compose.dev.yml down -v # stop AND wipe all data
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: queueway-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: queueway
+      POSTGRES_USER: queueway
+      POSTGRES_PASSWORD: devpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U queueway -d queueway"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: queueway-redis
+    restart: unless-stopped
+    # appendonly = Redis writes to disk, so pending jobs survive a restart.
+    # Test BOTH with and without this (Part 3.5) — the result decides what
+    # the docs have to recommend.
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: queueway-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: queueway
+      RABBITMQ_DEFAULT_PASS: devpassword
+    ports:
+      - "5672:5672"    # AMQP — the app connects here
+      - "15672:15672"  # Management UI — http://localhost:15672 (queueway / devpassword)
+    volumes:
+      - rabbitdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:
+  rabbitdata:

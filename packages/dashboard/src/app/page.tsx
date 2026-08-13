@@ -168,10 +168,25 @@ function DashboardContent({ userEmail, onLogout }: { userEmail: string | null; o
         return;
       }
 
-      setStats(await statsRes.json());
-      setJobs(await jobsRes.json());
-      setHealth(await healthRes.json());
-      setError(null);
+      // The API answers 503 with an error object when the database or broker
+      // is unreachable. Health still reports properly in that case, so keep
+      // showing it — assigning an error object where a list is expected is
+      // what used to take the whole page down.
+      const health = await healthRes.json().catch(() => null);
+      if (health) setHealth(health);
+
+      const statsBody = statsRes.ok ? await statsRes.json().catch(() => null) : null;
+      if (statsBody?.jobs) setStats(statsBody);
+
+      const jobsBody = jobsRes.ok ? await jobsRes.json().catch(() => null) : null;
+      setJobs(Array.isArray(jobsBody) ? jobsBody : []);
+
+      const storeDown = !statsRes.ok || !jobsRes.ok;
+      setError(
+        storeDown
+          ? 'The database or broker is unreachable. Queueway is retrying — job data will reappear once it is back.'
+          : null,
+      );
     } catch (err: any) {
       setError(err.message ?? 'Could not reach Queueway API');
     }
@@ -286,10 +301,8 @@ function DashboardContent({ userEmail, onLogout }: { userEmail: string | null; o
       </div>
 
       {error && (
-        <Card className="border-red-900 bg-red-950/30">
-          <CardContent className="p-4 text-sm text-red-400">
-            Could not reach Queueway API: {error} — make sure the core server is running.
-          </CardContent>
+        <Card className="border-amber-900 bg-amber-950/30">
+          <CardContent className="p-4 text-sm text-amber-400">{error}</CardContent>
         </Card>
       )}
 

@@ -19,8 +19,11 @@
 ## ✨ Features
 
 - **Zero-config by default** — `npm install queueway && npx queueway init && npx queueway start` and you have a working queue, dashboard, and API
-- **Pluggable brokers** — In-Memory (tested), RabbitMQ & Redis (implemented, not yet production-tested)
-- **Pluggable stores** — In-Memory (tested), SQLite (tested), PostgreSQL (implemented, not yet production-tested)
+- **Pluggable brokers** — In-Memory (tested), Redis & RabbitMQ (implemented, not yet production-tested)
+- **Pluggable stores** — In-Memory (tested), SQLite (tested), PostgreSQL (tested)
+- **Automatic setup** — `queueway init` finds the PostgreSQL/Redis you already run, or starts containers for you; it never touches your existing databases
+- **Survives outages** — if the database or broker goes away, the process stays up, health reports which part is down, and everything reconnects on its own
+- **Safe with multiple workers** — workers heartbeat, so a restart never re-runs a job another worker is still processing
 - **Automatic retry** with exponential backoff — jobs are genuinely redelivered, not just delayed
 - **Dead Letter Queue (DLQ)** for jobs that exceed max retries, with one-click retry from the dashboard
 - **Crash-recovery** — if the process dies mid-job (SQLite/Postgres), the job resumes on the next start instead of vanishing
@@ -135,7 +138,7 @@ If these aren't set, signup/login still work fully — you just won't get the we
 |---|---|---|
 | In-Memory | ✅ Production-tested | Testing/dev only — data lost on restart |
 | SQLite | ✅ Production-tested | File-based, crash-recovery, zero external services |
-| PostgreSQL | 🧪 Implemented, untested | For when you outgrow SQLite |
+| PostgreSQL | ✅ Tested | Shared by several workers; required for multi-worker setups |
 
 Configure via `queueway.config.js` (created by `queueway init`) or directly:
 
@@ -147,7 +150,141 @@ Connection details come from environment variables: `RABBITMQ_URL`, `REDIS_URL`,
 
 ### Why brokers/stores matter for scaling
 
-A **process** is one running instance of your program, with its own private memory. With the In-Memory broker, `publish()` and `subscribe()` only work within the *same process* — two separate servers (or two terminals running the same app) can't talk to each other through it. Redis/RabbitMQ exist precisely to solve this: they run as their own independent service, so any number of separate processes/servers can publish and subscribe through them. Until Redis/RabbitMQ finish their own dev+prod testing pass, Queueway is best suited to single-process deployments — which, for most small-to-medium workloads, is enough.
+A **process** is one running instance of your program, with its own private
+memory. With the In-Memory broker, `publish()` and `subscribe()` only work
+within the *same process* — two separate servers can't talk to each other
+through it. Redis and RabbitMQ exist to solve exactly this: they run as their
+own service, so any number of processes can publish and subscribe through them.
+
+Several workers also need a store they can all reach. SQLite is a local file,
+so two machines can't share it — which is why choosing Redis or RabbitMQ in
+`queueway init` gives you PostgreSQL as the store, with no question asked.
+
+---
+
+## ⚙️ Setup wizard
+
+`queueway init` asks for a **broker** first, then a **store**, because the
+broker determines which stores are honest options.
+
+For PostgreSQL or Redis, it offers only what's actually possible on your
+machine:
+
+1. **Use what's already running** — shown only when something is listening on
+   the default port.
+2. **Run a container for this project** — Docker.
+3. **Cancel.**
+
+Nothing dead-ends. If a path fails you're asked what to do next, and SQLite is
+always there as a working fallback — it needs nothing installed and is
+production-tested.
+
+### Using a PostgreSQL you already have
+
+Queueway does **not** touch your existing databases. It creates its own, the
+same way the SQLite store creates its own file:
+
+```sql
+CREATE ROLE queueway_<project> LOGIN PASSWORD '<generated>';
+CREATE DATABASE queueway_<project> OWNER queueway_<project>;
+```
+
+The role is not a superuser and has neither `CREATEDB` nor `CREATEROLE`.
+Nothing is ever dropped or altered — only created. The name comes from your
+`package.json`, so two projects on one machine never share a jobs table.
+
+Creating a role needs administrator rights, so the wizard first tries to
+connect as an administrator on its own (this works on Homebrew and some Linux
+setups). On Windows you'll be asked for the password once — it's used at that
+moment and never written anywhere.
+
+Re-running `init` is safe: an existing role has its password rotated, an
+existing database is reused, and your jobs stay where they are.
+
+### Using Docker
+
+The wizard writes `docker-compose.queueway.yml`, pulls the image, starts the
+container and waits until it genuinely accepts connections.
+
+**Ports are never hardcoded.** If 5432 is taken — common, since you may already
+run PostgreSQL — Queueway's container takes 5433 and `.env` is written to
+match. Your own services are left alone. The compose file is merged rather than
+overwritten, so adding Redis later keeps PostgreSQL in it.
+
+```bash
+docker compose -f docker-compose.queueway.yml ps      # status
+docker compose -f docker-compose.queueway.yml down    # stop, keep data
+docker compose -f docker-compose.queueway.yml down -v # stop, delete ALL data
+```
+
+---
+
+## 💾 Your job data
+
+When you re-run `init` and Queueway finds data from an earlier setup, it always
+asks. **Nothing is deleted without you choosing it, twice.**
+
+```
+? There's job data here from an earlier setup. What should happen to it?
+❯ Keep it — reconnect to the existing jobs
+  Start fresh — delete it and create an empty database
+  Cancel
+```
+
+**Keep it** restarts the container with the credentials in `.env` and
+reconnects to your jobs. If the password in `.env` doesn't match that data,
+Queueway says so and stops, leaving the data untouched.
+
+That last case is a PostgreSQL rule, not a Queueway limitation:
+`POSTGRES_PASSWORD` is only applied to an empty data directory, after which the
+password lives inside the data. Without the original, that data can't be opened
+by anyone. If you still have the old `DATABASE_URL`, put it back in `.env` and
+run `init` again — it comes straight back.
+
+> **`DATABASE_URL` in `.env` is the key to your job data.** Back it up like a
+> password. Lose it and the data in that volume can't be recovered.
+
+**Start fresh** asks for confirmation, then removes only that service's volume
+— resetting PostgreSQL leaves Redis data alone.
+
+---
+
+## 🔌 When a database or broker goes down
+
+Containers restart themselves (`restart: unless-stopped`). Queueway's job is to
+survive the outage and reconnect:
+
+- **The process stays alive.** A dropped connection is a logged warning, not a
+  crash.
+- **Errors reach your code, not the process.** `publish()` rejects so you can
+  catch and retry.
+- **Health is honest and fast.** Each component is checked independently with a
+  short timeout, so one failure never hides the others — and the dashboard
+  keeps working, showing exactly which part is down.
+- **It reconnects on its own.** No restart needed. Jobs stranded mid-flight are
+  picked up automatically within 30 seconds.
+
+```bash
+node scripts/resilience-test.js   # stops and restarts your container for real
+```
+
+---
+
+## 👥 Running several workers
+
+Several workers sharing one PostgreSQL is the point of the Redis and RabbitMQ
+brokers. Recovery has to be careful there: a job marked `processing` might
+belong to a worker that's alive and busy, and re-queuing it would run it twice
+— two invoices, two emails.
+
+Each worker registers in `queueway_workers` and heartbeats every 10 seconds:
+
+- A job held by a **live** worker is never touched.
+- A job whose owner **stopped heartbeating** (30s) is reclaimed.
+- Claims use `FOR UPDATE SKIP LOCKED`, so two workers recovering at the same
+  instant can't be handed the same job.
+- A clean shutdown deregisters immediately — no 30-second wait after a normal
+  restart.
 
 ---
 
@@ -240,12 +377,23 @@ There is only **one** npm package to install (`queueway`) — the CLI, library, 
 
 - `.queueway/` — dashboard login (`auth.db`), job data if using SQLite (`queueway.db`), and logs
 - `queueway.config.js` / `queueway.jobs.js` — your config and job handlers (created by `queueway init`)
+- `docker-compose.queueway.yml` and its containers/volumes, if you used the Docker option
+- `DATABASE_URL` / `REDIS_URL` in `.env`
 
 If you're removing Queueway for good and want a clean slate, delete these yourself:
 
 ```bash
+docker compose -f docker-compose.queueway.yml down -v   # only if you used Docker
 npm uninstall queueway
-rm -rf .queueway queueway.config.js queueway.jobs.js
+rm -rf .queueway queueway.config.js queueway.jobs.js docker-compose.queueway.yml
+```
+
+A PostgreSQL role and database created inside your own PostgreSQL are left in
+place — Queueway never drops anything. Remove them yourself if you want to:
+
+```sql
+DROP DATABASE queueway_<project>;
+DROP ROLE queueway_<project>;
 ```
 
 ---
@@ -255,10 +403,9 @@ rm -rf .queueway queueway.config.js queueway.jobs.js
 - [x] CORE queue engine — In-Memory + SQLite, retry, DLQ, crash-recovery
 - [x] REST API, dashboard, CLI (init/start/status/stop/health)
 - [x] Dashboard authentication (signup/login/reset), structured logging
+- [x] PostgreSQL dev+prod testing pass — worker-aware recovery, outage resilience, automatic setup
 - [ ] Redis dev+prod testing pass
 - [ ] RabbitMQ dev+prod testing pass
-- [ ] PostgreSQL dev+prod testing pass
-- [ ] npm publish
 - [ ] Community (Discord, contributor program)
 - [ ] PRO plugins (AI error analyzer, circuit breaker, SSO, compliance reports)
 - [ ] Cloud SaaS

@@ -2,7 +2,7 @@ import sqlite3 from "sqlite3";
 import fs from "fs";
 import path from "path";
 import { IStore } from "./IStore";
-import { Job } from "../types";
+import { Job, RecoverOptions } from "../types";
 import { logger } from "../logging/Logger";
 
 /**
@@ -129,8 +129,15 @@ export class SQLiteStore implements IStore {
     };
   }
 
-  async recoverStuckJobs(): Promise<Job[]> {
-    const stuckStatuses = ["pending", "processing", "retrying"];
+  async recoverStuckJobs(options: RecoverOptions = {}): Promise<Job[]> {
+    // A SQLite file is local to one machine, so there is only ever one
+    // worker — everything unfinished here really is ours to recover.
+    // includePending only turns false if someone pairs SQLite with an
+    // external broker that still holds the pending jobs itself.
+    const stuckStatuses =
+      options.includePending === false
+        ? ["processing", "retrying"]
+        : ["pending", "processing", "retrying"];
     const placeholders = stuckStatuses.map(() => "?").join(",");
 
     return new Promise((resolve, reject) => {

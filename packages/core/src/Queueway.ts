@@ -15,8 +15,12 @@ import { DLQManager } from "./dlq/DLQManager";
 import { HealthCheck } from "./monitoring/HealthCheck";
 import { logger } from "./logging/Logger";
 
+/** How often to look for work stranded by an outage. */
+const RECOVERY_INTERVAL_MS = 30_000;
+
 export class Queueway {
   private config: QueuewayConfig;
+  private recoveryTimer: NodeJS.Timeout | null = null;
   private broker: IBroker;
   private store: IStore;
   private retryManager: RetryManager;
@@ -134,7 +138,14 @@ export class Queueway {
     // Generic across all stores: in-memory returns [], persistent stores
     // (SQLite/Postgres) return anything left mid-flight from a previous
     // crash/restart so it gets re-queued instead of silently lost.
-    const recovered = await this.store.recoverStuckJobs();
+    //
+    // `includePending` is the difference between brokers: the in-memory
+    // broker loses its queue when the process dies, so a 'pending' job is
+    // genuinely gone and must be re-published. Redis/RabbitMQ still hold it
+    // themselves — re-publishing there would run the job twice.
+    const recovered = await this.store.recoverStuckJobs({
+      includePending: !this.broker.retainsPendingJobs,
+    });
     for (const job of recovered) {
       await this.broker.publish(job.eventName, job);
     }
@@ -143,6 +154,8 @@ export class Queueway {
         `♻️  Recovered ${recovered.length} stuck job(s) from a previous run`,
       );
     }
+
+    this.startRecoveryWatcher();
 
     logger.info("Queueway started");
 
@@ -213,8 +226,57 @@ export class Queueway {
     }
   }
 
+  /**
+   * Periodically re-runs recovery so an outage heals itself.
+   *
+   * Docker restarts the containers (`restart: unless-stopped`) and the drivers
+   * reconnect, but jobs that were mid-flight when the service vanished stay
+   * marked 'processing' in the store — they'd sit there until the app itself
+   * was restarted. This picks them up instead, so a database or broker going
+   * down and coming back needs no intervention at all.
+   *
+   * Recovery is already worker-aware, so this is safe with several workers
+   * running: it only reclaims jobs whose owner has stopped heartbeating.
+   */
+  private startRecoveryWatcher(): void {
+    if (this.recoveryTimer) return;
+
+    // Only safe where the store knows who owns each job. SQLite is a single
+    // local process anyway — it has no service that can go down independently,
+    // so there is nothing for a watcher to heal there.
+    if (!this.store.tracksJobOwnership) return;
+
+    this.recoveryTimer = setInterval(async () => {
+      try {
+        const recovered = await this.store.recoverStuckJobs({
+          includePending: !this.broker.retainsPendingJobs,
+        });
+        for (const job of recovered) {
+          await this.broker.publish(job.eventName, job);
+        }
+        if (recovered.length > 0) {
+          logger.info(`♻️  Re-queued ${recovered.length} job(s) after a service outage`);
+        }
+      } catch {
+        // The store is still unreachable — nothing to do but try again later.
+      }
+    }, RECOVERY_INTERVAL_MS);
+
+    // Must not keep a short-lived process alive on its own.
+    this.recoveryTimer.unref?.();
+  }
+
   async stop() {
+    if (this.recoveryTimer) {
+      clearInterval(this.recoveryTimer);
+      this.recoveryTimer = null;
+    }
     await this.broker.disconnect();
+    // Release DB handles too. Postgres pools in particular stay open for the
+    // life of the process otherwise, which exhausts the connection limits on
+    // managed providers' smaller plans. Stores with nothing to release don't
+    // implement close().
+    await this.store.close?.();
   }
 
   /** Aggregate job counts by status — powers the /queueway/stats API and dashboard. */
