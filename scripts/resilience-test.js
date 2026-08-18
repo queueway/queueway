@@ -40,6 +40,10 @@ const PG_CONTAINER = argOf("--pg", null);
 const corePath = path.resolve(__dirname, "..", "packages", "core");
 const { Queueway } = require(path.join(corePath, "dist", "index.js"));
 
+// Don't autoload the project's own queueway.jobs.js — these tests register
+// their own handlers, and running the real ones would be both noisy and wrong.
+process.env.QUEUEWAY_SKIP_JOBS_FILE = "1";
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let passed = 0;
 const ok = (m) => {

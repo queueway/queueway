@@ -19,7 +19,7 @@
 ## ✨ Features
 
 - **Zero-config by default** — `npm install queueway && npx queueway init && npx queueway start` and you have a working queue, dashboard, and API
-- **Pluggable brokers** — In-Memory (tested), Redis & RabbitMQ (implemented, not yet production-tested)
+- **Pluggable brokers** — In-Memory (tested), Redis (tested), RabbitMQ (implemented, not yet production-tested)
 - **Pluggable stores** — In-Memory (tested), SQLite (tested), PostgreSQL (tested)
 - **Automatic setup** — `queueway init` finds the PostgreSQL/Redis you already run, or starts containers for you; it never touches your existing databases
 - **Survives outages** — if the database or broker goes away, the process stays up, health reports which part is down, and everything reconnects on its own
@@ -131,7 +131,7 @@ If these aren't set, signup/login still work fully — you just won't get the we
 | Broker | Status | Notes |
 |---|---|---|
 | In-Memory | ✅ Production-tested | Zero-config default. Single-process only — see note below |
-| Redis | 🧪 Implemented, untested | Lists-based (`LPUSH`/`BRPOP`) |
+| Redis | ✅ Tested | Lists-based (`LPUSH`/`BRPOP`). Several workers share the load; needs a shared store — see below |
 | RabbitMQ | 🧪 Implemented, untested | Topic exchange, durable queues |
 
 | Store | Status | Notes |
@@ -159,6 +159,20 @@ own service, so any number of processes can publish and subscribe through them.
 Several workers also need a store they can all reach. SQLite is a local file,
 so two machines can't share it — which is why choosing Redis or RabbitMQ in
 `queueway init` gives you PostgreSQL as the store, with no question asked.
+
+### Redis has no message acknowledgement
+
+`BRPOP` removes a job from the list the moment a worker takes it. If that
+worker is killed mid-handler, the job is already gone from Redis — so the
+**store** is what brings it back: the record sits in `processing`, and recovery
+re-publishes it once the worker stops heartbeating.
+
+The practical consequence: **Redis must be paired with PostgreSQL** (or
+SQLite for a single worker). `redis` + `in-memory` store would lose a job
+permanently on a crash, which is why `queueway init` won't offer that pairing.
+
+RabbitMQ does have real acknowledgement — an unacked message returns to the
+queue by itself. That's its advantage, and why it's still on the roadmap.
 
 ---
 
@@ -266,6 +280,7 @@ survive the outage and reconnect:
 
 ```bash
 node scripts/resilience-test.js   # stops and restarts your container for real
+node scripts/redis-test.js        # multi-worker delivery, durability, outage recovery
 ```
 
 ---
@@ -404,7 +419,7 @@ DROP ROLE queueway_<project>;
 - [x] REST API, dashboard, CLI (init/start/status/stop/health)
 - [x] Dashboard authentication (signup/login/reset), structured logging
 - [x] PostgreSQL dev+prod testing pass — worker-aware recovery, outage resilience, automatic setup
-- [ ] Redis dev+prod testing pass
+- [x] Redis dev+prod testing pass — multi-worker distribution, durability, outage recovery
 - [ ] RabbitMQ dev+prod testing pass
 - [ ] Community (Discord, contributor program)
 - [ ] PRO plugins (AI error analyzer, circuit breaker, SSO, compliance reports)

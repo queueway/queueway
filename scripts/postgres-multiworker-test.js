@@ -41,6 +41,10 @@ const { Pool } = require(
   require.resolve("pg", { paths: [corePath, path.resolve(__dirname, "..")] }),
 );
 
+// Don't autoload the project's own queueway.jobs.js — these tests register
+// their own handlers, and running the real ones would be both noisy and wrong.
+process.env.QUEUEWAY_SKIP_JOBS_FILE = "1";
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const admin = new Pool({ connectionString: DB_URL });
 

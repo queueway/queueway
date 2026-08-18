@@ -53,6 +53,10 @@ const ok = (name) => {
   console.log(`   ✅ ${name}`);
 };
 const warn = (name) => console.log(`   ⚠️  ${name}`);
+// Don't autoload the project's own queueway.jobs.js — these tests register
+// their own handlers, and running the real ones would be both noisy and wrong.
+process.env.QUEUEWAY_SKIP_JOBS_FILE = "1";
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Short backoff: we're testing the STORE here, not the 30s backoff the

@@ -176,6 +176,9 @@ export class Queueway {
    * Both are optional and can be used together.
    */
   private loadJobsFile(): void {
+    // Test scripts and embedded uses that register their own handlers can opt
+    // out, so the project's real jobs don't get wired up alongside them.
+    if (process.env.QUEUEWAY_SKIP_JOBS_FILE === "1") return;
     this.loadJobsEntryFile();
     this.loadJobsDirectory();
   }
