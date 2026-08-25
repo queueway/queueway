@@ -9,7 +9,25 @@ const GITIGNORE_PATH = () => path.resolve(process.cwd(), ".gitignore");
  * comments, ordering and unrelated keys are all preserved. A setup wizard
  * that flattens someone's existing .env would be worse than no wizard.
  */
+/**
+ * Every variable Queueway writes carries this prefix. `DATABASE_URL` and
+ * `REDIS_URL` are among the most common names in Node projects and almost
+ * always belong to the application itself — overwriting one would repoint the
+ * app's own database at the job queue.
+ */
+const OWNED_PREFIX = "QUEUEWAY_";
+
 export function upsertEnv(vars: Record<string, string>): { path: string; added: string[]; updated: string[] } {
+  for (const key of Object.keys(vars)) {
+    if (!key.startsWith(OWNED_PREFIX)) {
+      // A guard, not a formality: this is what stops a future change from
+      // quietly clobbering someone's configuration.
+      throw new Error(
+        `Refusing to write "${key}" to .env — Queueway only writes ${OWNED_PREFIX}* variables.`,
+      );
+    }
+  }
+
   const file = ENV_PATH();
   const existing = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
   const lines = existing.length ? existing.split(/\r?\n/) : [];

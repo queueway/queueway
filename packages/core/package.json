@@ -21,7 +21,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node -e \"require('fs').cpSync('src/assets','dist/assets',{recursive:true})\"",
-    "prepublishOnly": "node -e \"const fs=require('fs'); const missing=['dist/index.js','public/index.html','README.md'].filter(f=>!fs.existsSync(f)); if(missing.length){console.error('❌ Missing: '+missing.join(', ')+' — run `npm run build` from the repo ROOT first (not just this folder), then try `npm publish` again.'); process.exit(1);} console.log('✅ Pre-publish check passed.');\"",
+    "prepublishOnly": "node -e \"const fs=require('fs'); const missing=['dist/index.js','public/index.html','README.md'].filter(f=>!fs.existsSync(f)); if(missing.length){console.error('\u274c Missing: '+missing.join(', ')+' \u2014 run `npm run build` from the repo ROOT first (not just this folder), then try `npm publish` again.'); process.exit(1);} console.log('\u2705 Pre-publish check passed.');\"",
     "test": "jest",
     "dev": "tsc -p tsconfig.build.json --watch",
     "lint": "eslint src"
@@ -32,6 +32,9 @@
   ],
   "author": "Syed Farrukh Ahmed",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "amqplib": "^0.10.0",
     "bcryptjs": "^2.4.3",

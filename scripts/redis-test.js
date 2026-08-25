@@ -32,11 +32,11 @@ try {
   })).config();
 } catch {}
 
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+const REDIS_URL = process.env.QUEUEWAY_REDIS_URL || process.env.REDIS_URL || "redis://localhost:6379";
 const DB_URL =
-  process.env.DATABASE_URL || "postgres://queueway:devpassword@localhost:5432/queueway";
-process.env.REDIS_URL = REDIS_URL;
-process.env.DATABASE_URL = DB_URL;
+  process.env.QUEUEWAY_DATABASE_URL || process.env.DATABASE_URL || "postgres://queueway:devpassword@localhost:5432/queueway";
+process.env.QUEUEWAY_REDIS_URL = REDIS_URL;
+process.env.QUEUEWAY_DATABASE_URL = DB_URL;
 
 const corePath = path.resolve(__dirname, "..", "packages", "core");
 const resolveFrom = (mod) =>

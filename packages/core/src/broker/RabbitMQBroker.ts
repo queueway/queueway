@@ -2,6 +2,7 @@ import amqp from "amqplib";
 import { IBroker } from "./IBroker";
 import { Job } from "../types";
 import { logger } from "../logging/Logger";
+import { rabbitmqUrl } from "../config/env";
 
 export class RabbitMQBroker implements IBroker {
   /** Jobs sit in a durable RabbitMQ queue, outside this process. */
@@ -15,7 +16,7 @@ export class RabbitMQBroker implements IBroker {
   }> = [];
 
   async connect(): Promise<void> {
-    const url = process.env.RABBITMQ_URL || "amqp://localhost";
+    const url = rabbitmqUrl() || "amqp://localhost";
     this.connection = await amqp.connect(url);
 
     // amqplib does not reconnect by itself, and it emits 'error' on the

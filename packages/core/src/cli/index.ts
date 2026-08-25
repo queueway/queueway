@@ -11,7 +11,9 @@ const program = new Command();
 program
   .name("queueway")
   .description("Queueway CLI - zero-config job queue tooling")
-  .version("0.0.1");
+  // Read from package.json rather than a literal, so `queueway --version`
+  // can't drift away from the version actually installed.
+  .version(require("../../package.json").version);
 
 program.command("init").description("Interactive setup wizard").action(init);
 

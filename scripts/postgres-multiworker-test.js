@@ -31,9 +31,10 @@ try {
 } catch {}
 
 const DB_URL =
+  process.env.QUEUEWAY_DATABASE_URL ||
   process.env.DATABASE_URL ||
   "postgres://queueway:devpassword@localhost:5432/queueway";
-process.env.DATABASE_URL = DB_URL;
+process.env.QUEUEWAY_DATABASE_URL = DB_URL;
 
 const corePath = path.resolve(__dirname, "..", "packages", "core");
 const { Queueway } = require(path.join(corePath, "dist", "index.js"));

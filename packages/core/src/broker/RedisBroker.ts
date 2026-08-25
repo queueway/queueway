@@ -2,6 +2,7 @@ import Redis from "ioredis";
 import { IBroker } from "./IBroker";
 import { Job } from "../types";
 import { logger } from "../logging/Logger";
+import { redisUrl } from "../config/env";
 
 /** Connection-level failures, as opposed to a genuine bug in a handler. */
 function isConnectionError(err: any): boolean {
@@ -25,7 +26,7 @@ export class RedisBroker implements IBroker {
   private readonly prefix = "queueway:queue:";
 
   private getUrl(): string {
-    return process.env.REDIS_URL || "redis://localhost:6379";
+    return redisUrl() || "redis://localhost:6379";
   }
 
   /**

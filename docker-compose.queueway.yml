@@ -16,7 +16,7 @@ services:
     # appendonly keeps queued jobs on disk, so a Redis restart doesn't drop them.
     command: redis-server --appendonly yes
     ports:
-      - "6380:6379"
+      - "6382:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -32,9 +32,9 @@ services:
     environment:
       POSTGRES_DB: queueway_queueway_monorepo
       POSTGRES_USER: queueway_queueway_monorepo
-      POSTGRES_PASSWORD: SFrZGokI72CyXEEyij_RCbG_
+      POSTGRES_PASSWORD: IKKBlWlp_sIXV7h14DG_4HAP
     ports:
-      - "5433:5432"
+      - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

@@ -37,7 +37,7 @@ async function provisionWithDocker(service: BrokerService): Promise<string | nul
   // fails. Redis has no auth, so its old volume is harmless — reusing it just
   // keeps previously queued jobs.
   if (service === "rabbitmq" && (await volumeExists(slug, "rabbitmq"))) {
-    const previous = readEnvValue("RABBITMQ_URL");
+    const previous = readEnvValue("QUEUEWAY_RABBITMQ_URL");
 
     if (previous && (await containerRunning(slug, "rabbitmq"))) {
       console.log("   ✅ Reusing the RabbitMQ container from a previous setup.");
@@ -63,9 +63,9 @@ async function provisionWithDocker(service: BrokerService): Promise<string | nul
     if (choice === "keep") {
       if (previous) return previous;
       console.log(
-        "\n   ❌ That data can't be opened: .env has no RABBITMQ_URL for it, and the\n" +
+        "\n   ❌ That data can't be opened: .env has no QUEUEWAY_RABBITMQ_URL for it, and the\n" +
           "      credentials are stored inside the data itself.\n" +
-          "      Restore the old RABBITMQ_URL to .env, or start fresh.\n",
+          "      Restore the old QUEUEWAY_RABBITMQ_URL to .env, or start fresh.\n",
       );
       return null;
     }

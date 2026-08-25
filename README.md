@@ -176,6 +176,29 @@ queue by itself. That's its advantage, and why it's still on the roadmap.
 
 ---
 
+## 🔐 Environment variables
+
+Every variable Queueway reads or writes is prefixed `QUEUEWAY_`:
+
+| Variable | What it's for |
+|---|---|
+| `QUEUEWAY_DATABASE_URL` | PostgreSQL connection for the job store |
+| `QUEUEWAY_REDIS_URL` | Redis connection for the broker |
+| `QUEUEWAY_RABBITMQ_URL` | RabbitMQ connection for the broker |
+| `QUEUEWAY_SQLITE_PATH` | Override where the SQLite file lives |
+| `QUEUEWAY_PORT` | Dashboard/API port (default 4287) |
+| `QUEUEWAY_SMTP_*` | Mail settings for dashboard login emails |
+
+`DATABASE_URL` and `REDIS_URL` are among the most common names in Node
+projects and usually belong to **your** application. Queueway never writes
+them — `queueway init` only ever adds `QUEUEWAY_*` lines to your `.env`, and
+your own configuration is left exactly as it was.
+
+The unprefixed names are still read as a fallback, so setups from earlier
+versions keep working. When both are set, the prefixed one wins.
+
+---
+
 ## ⚙️ Setup wizard
 
 `queueway init` asks for a **broker** first, then a **store**, because the

@@ -4,6 +4,7 @@ import path from "path";
 import { IStore } from "./IStore";
 import { Job, RecoverOptions } from "../types";
 import { logger } from "../logging/Logger";
+import { sqlitePath } from "../config/env";
 
 /**
  * File-based store using SQLite — good for local dev / single-server
@@ -14,7 +15,7 @@ export class SQLiteStore implements IStore {
 
   constructor(filename?: string) {
     const dbPath =
-      filename ?? process.env.SQLITE_PATH ?? path.resolve(process.cwd(), ".queueway", "queueway.db");
+      filename ?? sqlitePath() ?? path.resolve(process.cwd(), ".queueway", "queueway.db");
     const dir = path.dirname(dbPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     this.db = new sqlite3.Database(dbPath);

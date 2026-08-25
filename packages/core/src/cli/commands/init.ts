@@ -181,7 +181,7 @@ export async function init() {
     const url = await setupPostgres(dockerReady);
 
     if (url) {
-      env.DATABASE_URL = url;
+      env.QUEUEWAY_DATABASE_URL = url;
     } else {
       // Don't quietly rewrite what the user asked for. Setting up PostgreSQL
       // failed; ask what to do instead of downgrading their choices behind
@@ -210,7 +210,7 @@ export async function init() {
       if (next === "retry") {
         const retried = await setupPostgres(dockerReady);
         if (retried) {
-          env.DATABASE_URL = retried;
+          env.QUEUEWAY_DATABASE_URL = retried;
         } else {
           console.log("\n   Still no PostgreSQL. Nothing was written.\n");
           return;
@@ -238,7 +238,7 @@ export async function init() {
       process.exitCode = 1;
       return;
     }
-    env[finalBroker === "redis" ? "REDIS_URL" : "RABBITMQ_URL"] = url;
+    env[finalBroker === "redis" ? "QUEUEWAY_REDIS_URL" : "QUEUEWAY_RABBITMQ_URL"] = url;
   }
 
   // ------------------------------------------------------------- write it

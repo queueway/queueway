@@ -47,7 +47,12 @@ export class Queueway {
       this.config.retry?.maxDelay,
     );
     this.dlqManager = new DLQManager(this.store);
-    this.healthCheck = new HealthCheck(this.broker, this.store);
+    this.healthCheck = new HealthCheck(
+      this.broker,
+      this.store,
+      this.config.broker,
+      this.config.store,
+    );
   }
 
   private createBroker(type: string): IBroker {
@@ -99,6 +104,14 @@ export class Queueway {
 
   subscribe(eventName: string, handler: (job: Job) => Promise<void>) {
     this.broker.subscribe(eventName, async (job) => {
+      // Deleting a job is how someone stops it. The record is the source of
+      // truth: if it's gone, the job was cancelled and must not run — the
+      // broker may still be holding a copy from before the deletion.
+      if (!(await this.jobExists(job.id))) {
+        logger.info(`⏹️  Job ${job.id} was deleted — skipping it`);
+        return;
+      }
+
       await this.store.updateJob(job.id, "processing", job.attempts);
       try {
         await handler(job);
@@ -108,13 +121,39 @@ export class Queueway {
         if (this.retryManager.shouldRetry(job)) {
           await this.store.updateJob(job.id, "retrying", job.attempts);
           await this.retryManager.handleRetry(job); // waits for the backoff delay
+
+          // Check again: the backoff can be half a minute, and deleting a job
+          // during it is exactly when someone is trying to make it stop.
+          if (!(await this.jobExists(job.id))) {
+            logger.info(`⏹️  Job ${job.id} was deleted during its retry delay — stopping`);
+            return;
+          }
+
           await this.store.updateJob(job.id, "pending", job.attempts);
           await this.broker.publish(eventName, job); // actually re-queue the job
         } else {
+          if (!(await this.jobExists(job.id))) {
+            logger.info(`⏹️  Job ${job.id} was deleted — not moving it to the DLQ`);
+            return;
+          }
           await this.dlqManager.moveToDLQ(job);
         }
       }
     });
+  }
+
+  /**
+   * Whether the job record is still there. Stores that don't persist have
+   * nothing to check against, so their jobs always count as live.
+   */
+  private async jobExists(jobId: string): Promise<boolean> {
+    try {
+      return (await this.store.getJob(jobId)) !== null;
+    } catch {
+      // Store unreachable: don't cancel work on the strength of a failed
+      // lookup — that would silently drop jobs during an outage.
+      return true;
+    }
   }
 
   /**

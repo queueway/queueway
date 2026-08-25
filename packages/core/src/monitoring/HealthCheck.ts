@@ -41,7 +41,12 @@ function withTimeout(check: Promise<ComponentHealth>): Promise<ComponentHealth> 
 
 /** Real health check — actually pings the configured broker + database. */
 export class HealthCheck {
-  constructor(private broker: IBroker, private store: IStore) {}
+  constructor(
+    private broker: IBroker,
+    private store: IStore,
+    private brokerType?: string,
+    private storeType?: string,
+  ) {}
 
   async getStatus(): Promise<HealthStatus> {
     // Independent and bounded: one component failing says nothing about the
@@ -57,8 +62,8 @@ export class HealthCheck {
       status: healthy ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
       components: {
-        broker,
-        database,
+        broker: { ...broker, type: this.brokerType },
+        database: { ...database, type: this.storeType },
         // If this code is executing at all, the API process itself is up.
         api: { status: 'up' },
       },

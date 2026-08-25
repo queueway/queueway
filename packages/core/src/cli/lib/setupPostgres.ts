@@ -140,7 +140,7 @@ async function provisionWithDocker(slug: string): Promise<string | null> {
   // it's ours. Reusing a URL that points at the machine's own PostgreSQL
   // installation would leave Queueway configured against a database Docker
   // doesn't control, so stopping the container wouldn't stop the database.
-  const existingUrl = readEnvValue("DATABASE_URL");
+  const existingUrl = readEnvValue("QUEUEWAY_DATABASE_URL");
   const ourContainerIsUp = await containerRunning(slug, "postgres");
   if (ourContainerIsUp && existingUrl && (await urlWorks(existingUrl))) {
     console.log("   ✅ The PostgreSQL container from a previous setup is still working — reusing it.");
@@ -182,10 +182,10 @@ async function provisionWithDocker(slug: string): Promise<string | null> {
         // without the original there is genuinely no way in. Say so plainly
         // rather than starting a container that rejects every login.
         console.log(
-          "\n   ❌ That data can't be opened: .env has no DATABASE_URL for it, and\n" +
+          "\n   ❌ That data can't be opened: .env has no QUEUEWAY_DATABASE_URL for it, and\n" +
             "      the password is stored inside the data itself. PostgreSQL only\n" +
             "      accepts a new password on an empty database.\n" +
-            "\n      If you still have the old DATABASE_URL, put it back in .env and\n" +
+            "\n      If you still have the old QUEUEWAY_DATABASE_URL, put it back in .env and\n" +
             "      run `npx queueway init` again. Otherwise the only way forward is\n" +
             "      to start fresh.\n",
         );
@@ -214,7 +214,7 @@ async function provisionWithDocker(slug: string): Promise<string | null> {
         "\n   ❌ The password in .env doesn't match this data, so it can't be opened.\n" +
           "      PostgreSQL keeps the password inside the data directory and only\n" +
           "      accepts a new one on an empty database.\n" +
-          "\n      Either restore the original DATABASE_URL to .env, or run\n" +
+          "\n      Either restore the original QUEUEWAY_DATABASE_URL to .env, or run\n" +
           "      `npx queueway init` again and choose \"Start fresh\".\n" +
           "\n      Your data has been left untouched.\n",
       );

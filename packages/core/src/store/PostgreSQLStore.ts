@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { IStore } from "./IStore";
 import { Job, RecoverOptions } from "../types";
 import { logger } from "../logging/Logger";
+import { databaseUrl } from "../config/env";
 
 /** How often this worker says "I'm still alive". */
 const HEARTBEAT_INTERVAL_MS = 10_000;
@@ -29,7 +30,7 @@ export class PostgreSQLStore implements IStore {
   private heartbeatTimer: NodeJS.Timeout | null = null;
 
   constructor() {
-    const url = process.env.DATABASE_URL || "postgres://localhost/queueway";
+    const url = databaseUrl() || "postgres://localhost/queueway";
     this.pool = new Pool({
       connectionString: url,
       // Without these, a database that accepts TCP but never answers — exactly
