@@ -14,7 +14,7 @@
 
 ---
 
-> **Status:** Early access (v0.0.2). CORE engine (In-Memory + SQLite) is fully dev+prod tested. Redis, RabbitMQ, and PostgreSQL are implemented but not yet production-tested — see [Roadmap](#roadmap).
+> **Status:** Early access (v0.1.0). In-Memory, SQLite, PostgreSQL and Redis are dev+prod tested, including multi-worker safety and outage recovery. RabbitMQ is implemented but not yet production-tested — see [Roadmap](#roadmap).
 
 ## ✨ Features
 
@@ -52,27 +52,27 @@ Open **http://localhost:4287** — you'll be asked to create a one-time dashboar
 **For dev / quick testing**, you can skip `init` entirely and just start using it — zero setup:
 
 ```javascript
-const { queue } = require('queueway'); // defaults to In-Memory broker + store
+const { queue } = require("queueway"); // defaults to In-Memory broker + store
 ```
 
 ### Use it as a library in your own app
 
 ```javascript
-const { queue } = require('queueway'); // auto-configured from queueway.config.js, if present
+const { queue } = require("queueway"); // auto-configured from queueway.config.js, if present
 
-queue.subscribe('email.welcome', async (job) => {
-  console.log('Sending email to:', job.data.to);
+queue.subscribe("email.welcome", async (job) => {
+  console.log("Sending email to:", job.data.to);
 });
 
 async function main() {
   await queue.start();
-  await queue.publish('email.welcome', { to: 'user@example.com' });
+  await queue.publish("email.welcome", { to: "user@example.com" });
 }
 
 main();
 ```
 
-`queue.subscribe(eventName, handler)` registers what should happen when a job of that type runs. `queue.publish(eventName, data)` enqueues one. Both calls need to be in the **same running process** while using the In-Memory broker — see [Brokers & Stores](#-brokers--stores) for why, and what changes once Redis/RabbitMQ are production-ready.
+`queue.subscribe(eventName, handler)` registers what should happen when a job of that type runs. `queue.publish(eventName, data)` enqueues one. Both calls need to be in the **same running process** while using the In-Memory broker — see [Brokers & Stores](#-brokers--stores) for why, and how Redis lifts that limit.
 
 Want the dashboard + REST API running alongside your own app too, without the CLI? Pass `{ withServer: true }`:
 
@@ -84,17 +84,17 @@ This does everything `npx queueway start` does — including auto-loading `queue
 
 ### Which command should I use?
 
-| | `queue.start()` (embedded in your app) | `npx queueway start` (standalone CLI) |
-|---|---|---|
-| Runs inside your app's own process | ✅ — direct access to your app's own variables/functions from job handlers | ❌ — runs as a separate process, isolated |
-| HTTP API + dashboard | Only with `{ withServer: true }` | ✅ always |
-| Auto-heal (restarts itself if it crashes) | ❌ — use PM2/systemd/Docker around your *whole* app instead | ✅ built in |
-| Background mode | ❌ | ✅ |
-| Best for | Adding a queue to an app you already have (Express, etc.) where job handlers need tight access to your app's own state | Running the queue as its own standalone service, with zero extra code |
+|                                           | `queue.start()` (embedded in your app)                                                                                 | `npx queueway start` (standalone CLI)                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Runs inside your app's own process        | ✅ — direct access to your app's own variables/functions from job handlers                                             | ❌ — runs as a separate process, isolated                             |
+| HTTP API + dashboard                      | Only with `{ withServer: true }`                                                                                       | ✅ always                                                             |
+| Auto-heal (restarts itself if it crashes) | ❌ — use PM2/systemd/Docker around your _whole_ app instead                                                            | ✅ built in                                                           |
+| Background mode                           | ❌                                                                                                                     | ✅                                                                    |
+| Best for                                  | Adding a queue to an app you already have (Express, etc.) where job handlers need tight access to your app's own state | Running the queue as its own standalone service, with zero extra code |
 
-**Rule of thumb:** if you're bolting a queue onto an *existing* app, use `queue.start()` (add `{ withServer: true }` if you also want the dashboard). If you want the queue to just run and manage itself with no app code of your own, use `npx queueway start`.
+**Rule of thumb:** if you're bolting a queue onto an _existing_ app, use `queue.start()` (add `{ withServer: true }` if you also want the dashboard). If you want the queue to just run and manage itself with no app code of your own, use `npx queueway start`.
 
-> ⚠️ **Don't run both for the same project at the same time.** If your own script already calls `queue.start({ withServer: true })` on port 4287 (or already has the SQLite files open), and you *also* run `npx queueway start` in the same folder, they'll either collide on the port (`EADDRINUSE`) or contend over the same SQLite files. Pick one way to run your app, not both.
+> ⚠️ **Don't run both for the same project at the same time.** If your own script already calls `queue.start({ withServer: true })` on port 4287 (or already has the SQLite files open), and you _also_ run `npx queueway start` in the same folder, they'll either collide on the port (`EADDRINUSE`) or contend over the same SQLite files. Pick one way to run your app, not both.
 
 ---
 
@@ -128,22 +128,22 @@ If these aren't set, signup/login still work fully — you just won't get the we
 
 ## 🧱 Brokers & Stores
 
-| Broker | Status | Notes |
-|---|---|---|
-| In-Memory | ✅ Production-tested | Zero-config default. Single-process only — see note below |
-| Redis | ✅ Tested | Lists-based (`LPUSH`/`BRPOP`). Several workers share the load; needs a shared store — see below |
-| RabbitMQ | 🧪 Implemented, untested | Topic exchange, durable queues |
+| Broker    | Status                   | Notes                                                                                           |
+| --------- | ------------------------ | ----------------------------------------------------------------------------------------------- |
+| In-Memory | ✅ Production-tested     | Zero-config default. Single-process only — see note below                                       |
+| Redis     | ✅ Production-tested     | Lists-based (`LPUSH`/`BRPOP`). Several workers share the load; needs a shared store — see below |
+| RabbitMQ  | 🧪 Implemented, untested | Topic exchange, durable queues                                                                  |
 
-| Store | Status | Notes |
-|---|---|---|
-| In-Memory | ✅ Production-tested | Testing/dev only — data lost on restart |
-| SQLite | ✅ Production-tested | File-based, crash-recovery, zero external services |
-| PostgreSQL | ✅ Tested | Shared by several workers; required for multi-worker setups |
+| Store      | Status               | Notes                                                       |
+| ---------- | -------------------- | ----------------------------------------------------------- |
+| In-Memory  | ✅ Production-tested | Testing/dev only — data lost on restart                     |
+| SQLite     | ✅ Production-tested | File-based, crash-recovery, zero external services          |
+| PostgreSQL | ✅ Production-tested | Shared by several workers; required for multi-worker setups |
 
 Configure via `queueway.config.js` (created by `queueway init`) or directly:
 
 ```javascript
-new Queueway({ broker: 'redis', store: 'postgres' });
+new Queueway({ broker: "redis", store: "postgres" });
 ```
 
 Connection details come from environment variables: `RABBITMQ_URL`, `REDIS_URL`, `DATABASE_URL`, `SQLITE_PATH`.
@@ -152,7 +152,7 @@ Connection details come from environment variables: `RABBITMQ_URL`, `REDIS_URL`,
 
 A **process** is one running instance of your program, with its own private
 memory. With the In-Memory broker, `publish()` and `subscribe()` only work
-within the *same process* — two separate servers can't talk to each other
+within the _same process_ — two separate servers can't talk to each other
 through it. Redis and RabbitMQ exist to solve exactly this: they run as their
 own service, so any number of processes can publish and subscribe through them.
 
@@ -180,14 +180,14 @@ queue by itself. That's its advantage, and why it's still on the roadmap.
 
 Every variable Queueway reads or writes is prefixed `QUEUEWAY_`:
 
-| Variable | What it's for |
-|---|---|
-| `QUEUEWAY_DATABASE_URL` | PostgreSQL connection for the job store |
-| `QUEUEWAY_REDIS_URL` | Redis connection for the broker |
-| `QUEUEWAY_RABBITMQ_URL` | RabbitMQ connection for the broker |
-| `QUEUEWAY_SQLITE_PATH` | Override where the SQLite file lives |
-| `QUEUEWAY_PORT` | Dashboard/API port (default 4287) |
-| `QUEUEWAY_SMTP_*` | Mail settings for dashboard login emails |
+| Variable                | What it's for                            |
+| ----------------------- | ---------------------------------------- |
+| `QUEUEWAY_DATABASE_URL` | PostgreSQL connection for the job store  |
+| `QUEUEWAY_REDIS_URL`    | Redis connection for the broker          |
+| `QUEUEWAY_RABBITMQ_URL` | RabbitMQ connection for the broker       |
+| `QUEUEWAY_SQLITE_PATH`  | Override where the SQLite file lives     |
+| `QUEUEWAY_PORT`         | Dashboard/API port (default 4287)        |
+| `QUEUEWAY_SMTP_*`       | Mail settings for dashboard login emails |
 
 `DATABASE_URL` and `REDIS_URL` are among the most common names in Node
 projects and usually belong to **your** application. Queueway never writes
@@ -328,21 +328,21 @@ Each worker registers in `queueway_workers` and heartbeats every 10 seconds:
 
 ## 🖥️ CLI Reference
 
-| Command | What it does |
-|---|---|
-| `queueway init` | Interactive wizard — writes `queueway.config.js` and a starter `queueway.jobs.js` |
-| `queueway start` | Boots the server (config + jobs auto-loaded). Asks foreground vs background; `-b`/`-f` to skip the prompt, `-p <port>` to set the port (default `4287`) |
-| `queueway status` | Checks whether the server is up — works for dev/prod, foreground/background |
-| `queueway stop` | Stops a server started in the background |
-| `queueway health` | Prints broker/database health + job stats from a running instance |
+| Command           | What it does                                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `queueway init`   | Interactive wizard — writes `queueway.config.js` and a starter `queueway.jobs.js`                                                                       |
+| `queueway start`  | Boots the server (config + jobs auto-loaded). Asks foreground vs background; `-b`/`-f` to skip the prompt, `-p <port>` to set the port (default `4287`) |
+| `queueway status` | Checks whether the server is up — works for dev/prod, foreground/background                                                                             |
+| `queueway stop`   | Stops a server started in the background                                                                                                                |
+| `queueway health` | Prints broker/database health + job stats from a running instance                                                                                       |
 
 `queueway.jobs.js` is where you define what happens for each job type:
 
 ```javascript
 // queueway.jobs.js — auto-loaded by `queueway start` (and by `queue.start()` too)
 module.exports = function registerJobs(queue) {
-  queue.subscribe('email.welcome', async (job) => {
-    console.log('Sending:', job.data);
+  queue.subscribe("email.welcome", async (job) => {
+    console.log("Sending:", job.data);
   });
 };
 ```
@@ -378,15 +378,15 @@ These are the exact same methods the dashboard and `/queueway/*` REST routes cal
 
 All routes below require a logged-in session (see [Dashboard security](#dashboard-security)).
 
-| Method | Route | Description |
-|---|---|---|
-| GET | `/queueway/health` | Broker + database + API status (200 if healthy, 503 if not) |
-| GET | `/queueway/stats` | Job counts by status |
-| GET | `/queueway/jobs?status=&limit=` | List jobs, optionally filtered |
-| GET | `/queueway/jobs/:id` | Get one job |
-| GET | `/queueway/dlq?limit=` | List failed (dead-lettered) jobs |
-| POST | `/queueway/jobs/:id/retry` | Re-queue a job (resets attempts to 0) |
-| DELETE | `/queueway/jobs/:id` | Permanently delete a job record |
+| Method | Route                           | Description                                                 |
+| ------ | ------------------------------- | ----------------------------------------------------------- |
+| GET    | `/queueway/health`              | Broker + database + API status (200 if healthy, 503 if not) |
+| GET    | `/queueway/stats`               | Job counts by status                                        |
+| GET    | `/queueway/jobs?status=&limit=` | List jobs, optionally filtered                              |
+| GET    | `/queueway/jobs/:id`            | Get one job                                                 |
+| GET    | `/queueway/dlq?limit=`          | List failed (dead-lettered) jobs                            |
+| POST   | `/queueway/jobs/:id/retry`      | Re-queue a job (resets attempts to 0)                       |
+| DELETE | `/queueway/jobs/:id`            | Permanently delete a job record                             |
 
 Auth routes (always public, obviously): `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `GET /auth/status`, `POST /auth/forgot-password`, `POST /auth/reset-password`.
 

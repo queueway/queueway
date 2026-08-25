@@ -1,6 +1,6 @@
 {
   "name": "queueway",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "Queueway - Zero-Config Job Queue",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
