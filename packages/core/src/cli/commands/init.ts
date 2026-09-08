@@ -30,6 +30,10 @@ const BROKER_CHOICES = [
     name: "Redis — run several workers across processes/servers",
     value: "redis",
   },
+  {
+    name: "RabbitMQ — same, plus a job survives the worker that was running it",
+    value: "rabbitmq",
+  },
 ];
 
 /**
@@ -232,13 +236,18 @@ export async function init() {
   // --------------------------------------------------------------- broker
   if (finalBroker === "redis" || finalBroker === "rabbitmq") {
     console.log(`\n📦 ${finalBroker === "redis" ? "Redis" : "RabbitMQ"}\n`);
-    const url = await setupBroker(finalBroker, dockerReady);
-    if (!url) {
+    const result = await setupBroker(finalBroker, dockerReady);
+    if (!result) {
       console.log("\n   Broker setup was cancelled — nothing was written.\n");
       process.exitCode = 1;
       return;
     }
-    env[finalBroker === "redis" ? "QUEUEWAY_REDIS_URL" : "QUEUEWAY_RABBITMQ_URL"] = url;
+    env[finalBroker === "redis" ? "QUEUEWAY_REDIS_URL" : "QUEUEWAY_RABBITMQ_URL"] = result.url;
+    // Written down rather than only printed: a port shown once during setup is
+    // a port nobody can find again next week.
+    if (result.managementPort !== undefined) {
+      env.QUEUEWAY_RABBITMQ_MANAGEMENT_URL = `http://localhost:${result.managementPort}`;
+    }
   }
 
   // ------------------------------------------------------------- write it

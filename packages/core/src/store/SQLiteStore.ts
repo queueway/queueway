@@ -135,10 +135,12 @@ export class SQLiteStore implements IStore {
     // worker — everything unfinished here really is ours to recover.
     // includePending only turns false if someone pairs SQLite with an
     // external broker that still holds the pending jobs itself.
-    const stuckStatuses =
-      options.includePending === false
-        ? ["processing", "retrying"]
-        : ["pending", "processing", "retrying"];
+    // includeProcessing only turns false for a broker that redelivers unacked
+    // in-flight messages by itself (RabbitMQ) — recovering them here too would
+    // run the job twice.
+    const stuckStatuses = ["retrying"];
+    if (options.includeProcessing !== false) stuckStatuses.unshift("processing");
+    if (options.includePending !== false) stuckStatuses.unshift("pending");
     const placeholders = stuckStatuses.map(() => "?").join(",");
 
     return new Promise((resolve, reject) => {

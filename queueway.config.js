@@ -1,5 +1,5 @@
 module.exports = {
-  broker: 'redis',
+  broker: 'rabbitmq',
   store: 'postgres',
   retry: {
     maxAttempts: 5,

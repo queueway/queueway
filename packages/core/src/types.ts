@@ -52,6 +52,13 @@ export interface RecoverOptions {
    */
   includePending?: boolean;
   /**
+   * Whether 'processing' jobs count as lost. True by default. False only for
+   * brokers that redeliver an unacked in-flight message themselves (RabbitMQ):
+   * there the broker is already handing the job to another worker, so
+   * re-publishing it from the store would run it twice.
+   */
+  includeProcessing?: boolean;
+  /**
    * How long a worker can go without a heartbeat before it's presumed dead
    * and its in-flight jobs may be taken over by someone else.
    */

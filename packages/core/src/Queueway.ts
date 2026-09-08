@@ -21,6 +21,8 @@ const RECOVERY_INTERVAL_MS = 30_000;
 export class Queueway {
   private config: QueuewayConfig;
   private recoveryTimer: NodeJS.Timeout | null = null;
+  /** Retry backoffs waiting outside a delivery; cleared on stop(). */
+  private retryTimers = new Set<NodeJS.Timeout>();
   private broker: IBroker;
   private store: IStore;
   private retryManager: RetryManager;
@@ -112,6 +114,16 @@ export class Queueway {
         return;
       }
 
+      // Only brokers that redeliver unacked messages can hand us the same job
+      // twice (RabbitMQ). The window is real: a worker that dies between
+      // marking a job completed and acknowledging it leaves the message in the
+      // queue, and RabbitMQ gives it to somebody else. Brokers that remove the
+      // job on delivery never reach this check.
+      if (this.broker.guaranteesRedelivery && (await this.alreadyFinished(job.id))) {
+        logger.info(`⏭️  Job ${job.id} already finished — ignoring the redelivery`);
+        return;
+      }
+
       await this.store.updateJob(job.id, "processing", job.attempts);
       try {
         await handler(job);
@@ -120,6 +132,17 @@ export class Queueway {
         job.attempts += 1;
         if (this.retryManager.shouldRetry(job)) {
           await this.store.updateJob(job.id, "retrying", job.attempts);
+
+          // Where a delivery is held open until it's acknowledged (RabbitMQ),
+          // sleeping here would keep the message unacked for the whole backoff
+          // — up to 30 seconds during which that worker consumes nothing else,
+          // and everything queued behind it waits. Hand the wait to a timer and
+          // return, so the delivery can be acknowledged straight away.
+          if (this.broker.acknowledgesDelivery) {
+            this.scheduleRetry(eventName, job);
+            return;
+          }
+
           await this.retryManager.handleRetry(job); // waits for the backoff delay
 
           // Check again: the backoff can be half a minute, and deleting a job
@@ -140,6 +163,55 @@ export class Queueway {
         }
       }
     });
+  }
+
+  /**
+   * Waits out a retry backoff outside the delivery, then re-queues the job.
+   *
+   * Same steps the inline path takes, in the same order — the only difference
+   * is that the handler has already returned, so the broker can acknowledge the
+   * message instead of holding it open for the whole delay. The store row stays
+   * 'retrying' throughout, which is what lets recovery pick the job up if this
+   * worker dies before the timer fires.
+   */
+  private scheduleRetry(eventName: string, job: Job): void {
+    const delay = this.retryManager.getRetryDelay(job.attempts);
+    logger.info(`Retrying job ${job.id} in ${delay}ms`);
+
+    const timer = setTimeout(async () => {
+      this.retryTimers.delete(timer);
+      try {
+        // Deleting a job during its backoff is exactly when someone is trying
+        // to make it stop.
+        if (!(await this.jobExists(job.id))) {
+          logger.info(`⏹️  Job ${job.id} was deleted during its retry delay — stopping`);
+          return;
+        }
+        await this.store.updateJob(job.id, "pending", job.attempts);
+        await this.broker.publish(eventName, job);
+      } catch (err: any) {
+        // The row is still 'retrying' — well, 'pending' at worst — so recovery
+        // will pick it up. Losing the timer must not take the process with it.
+        logger.error(`Failed to re-queue job ${job.id} after its retry delay`, {
+          error: err?.message ?? String(err),
+        });
+      }
+    }, delay);
+
+    this.retryTimers.add(timer);
+  }
+
+  /**
+   * True only when the store positively reports the job as finished. A failed
+   * lookup returns false: a store outage must never be read as "already done".
+   */
+  private async alreadyFinished(jobId: string): Promise<boolean> {
+    try {
+      const record = await this.store.getJob(jobId);
+      return record?.status === "completed" || record?.status === "archived";
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -182,8 +254,15 @@ export class Queueway {
     // broker loses its queue when the process dies, so a 'pending' job is
     // genuinely gone and must be re-published. Redis/RabbitMQ still hold it
     // themselves — re-publishing there would run the job twice.
+    //
+    // `includeProcessing` is the same argument one step further in. Redis
+    // removes a job from the queue the moment a worker takes it, so if that
+    // worker dies the store is the only way back. RabbitMQ keeps the message
+    // until it is acknowledged and hands it to someone else by itself, so
+    // recovering it here as well would run it twice.
     const recovered = await this.store.recoverStuckJobs({
       includePending: !this.broker.retainsPendingJobs,
+      includeProcessing: !this.broker.guaranteesRedelivery,
     });
     for (const job of recovered) {
       await this.broker.publish(job.eventName, job);
@@ -292,6 +371,7 @@ export class Queueway {
       try {
         const recovered = await this.store.recoverStuckJobs({
           includePending: !this.broker.retainsPendingJobs,
+          includeProcessing: !this.broker.guaranteesRedelivery,
         });
         for (const job of recovered) {
           await this.broker.publish(job.eventName, job);
@@ -313,6 +393,11 @@ export class Queueway {
       clearInterval(this.recoveryTimer);
       this.recoveryTimer = null;
     }
+    // A pending backoff would otherwise keep the process alive after stop()
+    // and re-publish into a broker that has already been disconnected. The
+    // rows stay 'retrying', so recovery re-queues them on the next start.
+    for (const timer of this.retryTimers) clearTimeout(timer);
+    this.retryTimers.clear();
     await this.broker.disconnect();
     // Release DB handles too. Postgres pools in particular stay open for the
     // life of the process otherwise, which exhausts the connection limits on

@@ -30,6 +30,20 @@ export function rabbitmqUrl(): string | undefined {
   return pick("QUEUEWAY_RABBITMQ_URL", "RABBITMQ_URL");
 }
 
+/**
+ * How many messages RabbitMQ may hand one worker before it acknowledges.
+ *
+ * Without a limit, one consumer takes every available message and several
+ * workers don't share the load at all — the opposite of the point. 1 is the
+ * fair default; raise it only when handlers are fast and uniform, and keep it
+ * at or above the number of handlers a worker runs at once.
+ */
+export function rabbitmqPrefetch(): number {
+  const raw = pick("QUEUEWAY_RABBITMQ_PREFETCH", "RABBITMQ_PREFETCH");
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
 /** Override for where the SQLite file lives. */
 export function sqlitePath(): string | undefined {
   return pick("QUEUEWAY_SQLITE_PATH", "SQLITE_PATH");

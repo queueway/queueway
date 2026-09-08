@@ -29,7 +29,17 @@ function generatePassword(): string {
   return randomBytes(18).toString("base64url");
 }
 
-async function provisionWithDocker(service: BrokerService): Promise<string | null> {
+/**
+ * A broker connection string, plus — for RabbitMQ — where its management UI
+ * ended up. That UI is the single most useful debugging tool the user gets, and
+ * a port printed once during setup is a port they no longer have next week.
+ */
+export interface BrokerSetupResult {
+  url: string;
+  managementPort?: number;
+}
+
+async function provisionWithDocker(service: BrokerService): Promise<BrokerSetupResult | null> {
   const slug = projectSlug();
 
   // RabbitMQ bakes its credentials into its volume the same way Postgres does,
@@ -41,7 +51,7 @@ async function provisionWithDocker(service: BrokerService): Promise<string | nul
 
     if (previous && (await containerRunning(slug, "rabbitmq"))) {
       console.log("   ✅ Reusing the RabbitMQ container from a previous setup.");
-      return previous;
+      return { url: previous };
     }
 
     const { choice } = await inquirer.prompt([
@@ -61,7 +71,7 @@ async function provisionWithDocker(service: BrokerService): Promise<string | nul
     if (choice === "cancel") return null;
 
     if (choice === "keep") {
-      if (previous) return previous;
+      if (previous) return { url: previous };
       console.log(
         "\n   ❌ That data can't be opened: .env has no QUEUEWAY_RABBITMQ_URL for it, and the\n" +
           "      credentials are stored inside the data itself.\n" +
@@ -89,17 +99,20 @@ async function provisionWithDocker(service: BrokerService): Promise<string | nul
 
   let spec: ServiceSpec;
   let url: string;
+  let managementPort: number | undefined;
 
   if (service === "redis") {
     spec = { name: "redis", port };
     url = `redis://localhost:${port}`;
   } else {
-    const uiPort = await findFreePort(DEFAULT_RABBIT_UI_PORT);
+    managementPort = await findFreePort(DEFAULT_RABBIT_UI_PORT);
     const user = `queueway_${slug}`.slice(0, 60);
     const password = generatePassword();
-    spec = { name: "rabbitmq", port, extraPort: uiPort, user, password };
+    spec = { name: "rabbitmq", port, extraPort: managementPort, user, password };
     url = `amqp://${user}:${encodeURIComponent(password)}@localhost:${port}`;
-    console.log(`   ℹ️  Management UI will be at http://localhost:${uiPort} (user: ${user})`);
+    console.log(
+      `   ℹ️  Management UI will be at http://localhost:${managementPort} (user: ${user})`,
+    );
   }
 
   writeComposeFile([spec], slug);
@@ -124,7 +137,7 @@ async function provisionWithDocker(service: BrokerService): Promise<string | nul
   // RabbitMQ takes noticeably longer than Redis to finish booting.
   const ok = await waitForPort(port, service === "rabbitmq" ? 150_000 : 60_000);
   console.log(ok ? "ready." : "timed out.");
-  return ok ? url : null;
+  return ok ? { url, managementPort } : null;
 }
 
 /**
@@ -135,7 +148,7 @@ async function provisionWithDocker(service: BrokerService): Promise<string | nul
 export async function setupBroker(
   service: BrokerService,
   dockerAvailable: boolean,
-): Promise<string | null> {
+): Promise<BrokerSetupResult | null> {
   const defaultPort = service === "redis" ? DEFAULT_REDIS_PORT : DEFAULT_RABBIT_PORT;
   const alreadyThere = await isPortOpen(defaultPort);
 
@@ -169,9 +182,12 @@ export async function setupBroker(
     // Redis needs no credentials by default; RabbitMQ accepts guest/guest on
     // localhost only. Both are fine for local development, and a URL can be
     // pasted instead when they aren't.
-    return service === "redis"
-      ? `redis://localhost:${defaultPort}`
-      : `amqp://localhost:${defaultPort}`;
+    return {
+      url:
+        service === "redis"
+          ? `redis://localhost:${defaultPort}`
+          : `amqp://localhost:${defaultPort}`,
+    };
   }
 
   if (!dockerAvailable) {

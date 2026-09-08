@@ -14,12 +14,12 @@
 
 ---
 
-> **Status:** Early access (v0.1.0). In-Memory, SQLite, PostgreSQL and Redis are dev+prod tested, including multi-worker safety and outage recovery. RabbitMQ is implemented but not yet production-tested — see [Roadmap](#roadmap).
+> **Status:** Early access (v0.1.0). In-Memory, SQLite, PostgreSQL, Redis and RabbitMQ are all dev+prod tested, including multi-worker safety, duplicate protection and outage recovery.
 
 ## ✨ Features
 
 - **Zero-config by default** — `npm install queueway && npx queueway init && npx queueway start` and you have a working queue, dashboard, and API
-- **Pluggable brokers** — In-Memory (tested), Redis (tested), RabbitMQ (implemented, not yet production-tested)
+- **Pluggable brokers** — In-Memory, Redis and RabbitMQ, all production-tested
 - **Pluggable stores** — In-Memory (tested), SQLite (tested), PostgreSQL (tested)
 - **Automatic setup** — `queueway init` finds the PostgreSQL/Redis you already run, or starts containers for you; it never touches your existing databases
 - **Survives outages** — if the database or broker goes away, the process stays up, health reports which part is down, and everything reconnects on its own
@@ -132,7 +132,7 @@ If these aren't set, signup/login still work fully — you just won't get the we
 | --------- | ------------------------ | ----------------------------------------------------------------------------------------------- |
 | In-Memory | ✅ Production-tested     | Zero-config default. Single-process only — see note below                                       |
 | Redis     | ✅ Production-tested     | Lists-based (`LPUSH`/`BRPOP`). Several workers share the load; needs a shared store — see below |
-| RabbitMQ  | 🧪 Implemented, untested | Topic exchange, durable queues                                                                  |
+| RabbitMQ  | ✅ Production-tested     | Topic exchange, durable queues, publisher confirms, dead-lettering. A job survives the worker running it — see below |
 
 | Store      | Status               | Notes                                                       |
 | ---------- | -------------------- | ----------------------------------------------------------- |
@@ -171,8 +171,57 @@ The practical consequence: **Redis must be paired with PostgreSQL** (or
 SQLite for a single worker). `redis` + `in-memory` store would lose a job
 permanently on a crash, which is why `queueway init` won't offer that pairing.
 
-RabbitMQ does have real acknowledgement — an unacked message returns to the
-queue by itself. That's its advantage, and why it's still on the roadmap.
+### RabbitMQ does have acknowledgement — and that is the whole reason to pick it
+
+A RabbitMQ delivery stays in the queue until the worker acknowledges it. Kill a
+worker mid-handler and the message is returned to the queue **immediately, by
+the broker itself** — no store lookup, no waiting for a heartbeat to go stale.
+
+```
+Worker dies mid-job:
+
+  Redis     →  job already removed from the list  →  the store re-publishes it
+               (recovered after the worker's heartbeat goes stale, ~30s)
+
+  RabbitMQ  →  message was never acknowledged     →  the broker requeues it
+               (another worker has it in under a second)
+```
+
+Because the broker redelivers, Queueway's store recovery deliberately **stands
+down** for `processing` jobs on RabbitMQ. Recovering them from the store as
+well would hand the same job to two workers — and two invoices is a worse
+failure than a slow one.
+
+**Known limitation:** that hand-off only happens when the connection drops. A
+worker that is alive but wedged — a handler stuck on a socket with no timeout —
+holds its message unacked, and the store will not rescue it either. It stays
+held until RabbitMQ's own `consumer_timeout` (30 minutes by default on 3.x).
+Handler timeouts are on the roadmap; until then, give your handlers their own
+timeouts if they talk to the network.
+
+**Which one should you use?**
+
+| | Redis | RabbitMQ |
+|---|---|---|
+| Worker dies mid-job | Store re-publishes after ~30s | Broker requeues in under a second |
+| Needs a shared store to be safe | Yes, always | Yes, for retries and history |
+| Load spreading | Even by nature (`BRPOP`) | Even once `prefetch` is set (Queueway sets 1) |
+| Failed publish is detectable | Yes | Yes — publisher confirms |
+| Ops cost | Low; you probably already run it | Higher; another service to operate |
+
+If Redis is already in your stack and a job losing 30 seconds is survivable,
+Redis is the simpler choice. If a lost or delayed job is expensive, RabbitMQ's
+acknowledgement is worth the extra service.
+
+**Queue settings** are declared by Queueway on first use: a durable topic
+exchange `queueway`, durable queues `queueway.<event>`, and a dead-letter
+exchange `queueway.dlx` feeding `queueway.dead.<event>`. Queues created by
+Queueway **0.0.x** predate dead-lettering and will be refused with a `406`;
+let them drain, then `rabbitmqctl delete_queue queueway.<event>` once.
+
+Queueway declares **classic durable** queues. Quorum queues are a better fit for
+a real cluster and are on the roadmap, but they change declaration and failure
+semantics, so they are deliberately not used yet.
 
 ---
 
@@ -185,6 +234,8 @@ Every variable Queueway reads or writes is prefixed `QUEUEWAY_`:
 | `QUEUEWAY_DATABASE_URL` | PostgreSQL connection for the job store  |
 | `QUEUEWAY_REDIS_URL`    | Redis connection for the broker          |
 | `QUEUEWAY_RABBITMQ_URL` | RabbitMQ connection for the broker       |
+| `QUEUEWAY_RABBITMQ_PREFETCH` | How many messages one worker may hold unacked (default 1) |
+| `QUEUEWAY_RABBITMQ_MANAGEMENT_URL` | Where `queueway init` put the RabbitMQ management UI |
 | `QUEUEWAY_SQLITE_PATH`  | Override where the SQLite file lives     |
 | `QUEUEWAY_PORT`         | Dashboard/API port (default 4287)        |
 | `QUEUEWAY_SMTP_*`       | Mail settings for dashboard login emails |
@@ -302,8 +353,12 @@ survive the outage and reconnect:
   picked up automatically within 30 seconds.
 
 ```bash
-node scripts/resilience-test.js   # stops and restarts your container for real
-node scripts/redis-test.js        # multi-worker delivery, durability, outage recovery
+node scripts/regression-test.js            # In-Memory + SQLite, end to end — run after every change
+node scripts/postgres-test.js              # schema, retry/DLQ, crash recovery, pool cleanup
+node scripts/postgres-multiworker-test.js  # no duplicates, no orphans lost
+node scripts/redis-test.js                 # multi-worker delivery, durability, outage recovery
+node scripts/rabbitmq-test.js              # acknowledgement, redelivery, dead-lettering, reconnect
+node scripts/resilience-test.js            # stops and restarts your container for real
 ```
 
 ---
@@ -443,7 +498,9 @@ DROP ROLE queueway_<project>;
 - [x] Dashboard authentication (signup/login/reset), structured logging
 - [x] PostgreSQL dev+prod testing pass — worker-aware recovery, outage resilience, automatic setup
 - [x] Redis dev+prod testing pass — multi-worker distribution, durability, outage recovery
-- [ ] RabbitMQ dev+prod testing pass
+- [x] RabbitMQ dev+prod testing pass — acknowledgement, redelivery without duplicates, reconnect, dead-lettering
+- [ ] Handler timeouts (so a wedged worker can't hold a message indefinitely)
+- [ ] Quorum queue support for clustered RabbitMQ
 - [ ] Community (Discord, contributor program)
 - [ ] PRO plugins (AI error analyzer, circuit breaker, SSO, compliance reports)
 - [ ] Cloud SaaS

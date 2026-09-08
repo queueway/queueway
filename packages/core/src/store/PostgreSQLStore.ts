@@ -230,7 +230,11 @@ export class PostgreSQLStore implements IStore {
     const aloneOnTheStore = others.rows[0].n === 0;
 
     // 3. Decide what counts as stuck.
-    const statuses = ["processing", "retrying"];
+    //    'processing' is excluded only for brokers that redeliver an unacked
+    //    message themselves (RabbitMQ) — taking it here as well would hand the
+    //    same job to two workers.
+    const statuses =
+      options.includeProcessing === false ? ["retrying"] : ["processing", "retrying"];
     const params: any[] = [statuses];
     let where: string;
 
