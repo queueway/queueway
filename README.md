@@ -14,7 +14,7 @@
 
 ---
 
-> **Status:** Early access (v0.1.0). In-Memory, SQLite, PostgreSQL, Redis and RabbitMQ are all dev+prod tested, including multi-worker safety, duplicate protection and outage recovery.
+> **Status:** Early access (v0.2.0). In-Memory, SQLite, PostgreSQL, Redis and RabbitMQ are all dev+prod tested, including multi-worker safety, duplicate protection and outage recovery.
 
 ## ✨ Features
 
@@ -128,11 +128,11 @@ If these aren't set, signup/login still work fully — you just won't get the we
 
 ## 🧱 Brokers & Stores
 
-| Broker    | Status                   | Notes                                                                                           |
-| --------- | ------------------------ | ----------------------------------------------------------------------------------------------- |
-| In-Memory | ✅ Production-tested     | Zero-config default. Single-process only — see note below                                       |
-| Redis     | ✅ Production-tested     | Lists-based (`LPUSH`/`BRPOP`). Several workers share the load; needs a shared store — see below |
-| RabbitMQ  | ✅ Production-tested     | Topic exchange, durable queues, publisher confirms, dead-lettering. A job survives the worker running it — see below |
+| Broker    | Status               | Notes                                                                                                                |
+| --------- | -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| In-Memory | ✅ Production-tested | Zero-config default. Single-process only — see note below                                                            |
+| Redis     | ✅ Production-tested | Lists-based (`LPUSH`/`BRPOP`). Several workers share the load; needs a shared store — see below                      |
+| RabbitMQ  | ✅ Production-tested | Topic exchange, durable queues, publisher confirms, dead-lettering. A job survives the worker running it — see below |
 
 | Store      | Status               | Notes                                                       |
 | ---------- | -------------------- | ----------------------------------------------------------- |
@@ -201,13 +201,13 @@ timeouts if they talk to the network.
 
 **Which one should you use?**
 
-| | Redis | RabbitMQ |
-|---|---|---|
-| Worker dies mid-job | Store re-publishes after ~30s | Broker requeues in under a second |
-| Needs a shared store to be safe | Yes, always | Yes, for retries and history |
-| Load spreading | Even by nature (`BRPOP`) | Even once `prefetch` is set (Queueway sets 1) |
-| Failed publish is detectable | Yes | Yes — publisher confirms |
-| Ops cost | Low; you probably already run it | Higher; another service to operate |
+|                                 | Redis                            | RabbitMQ                                      |
+| ------------------------------- | -------------------------------- | --------------------------------------------- |
+| Worker dies mid-job             | Store re-publishes after ~30s    | Broker requeues in under a second             |
+| Needs a shared store to be safe | Yes, always                      | Yes, for retries and history                  |
+| Load spreading                  | Even by nature (`BRPOP`)         | Even once `prefetch` is set (Queueway sets 1) |
+| Failed publish is detectable    | Yes                              | Yes — publisher confirms                      |
+| Ops cost                        | Low; you probably already run it | Higher; another service to operate            |
 
 If Redis is already in your stack and a job losing 30 seconds is survivable,
 Redis is the simpler choice. If a lost or delayed job is expensive, RabbitMQ's
@@ -229,16 +229,16 @@ semantics, so they are deliberately not used yet.
 
 Every variable Queueway reads or writes is prefixed `QUEUEWAY_`:
 
-| Variable                | What it's for                            |
-| ----------------------- | ---------------------------------------- |
-| `QUEUEWAY_DATABASE_URL` | PostgreSQL connection for the job store  |
-| `QUEUEWAY_REDIS_URL`    | Redis connection for the broker          |
-| `QUEUEWAY_RABBITMQ_URL` | RabbitMQ connection for the broker       |
-| `QUEUEWAY_RABBITMQ_PREFETCH` | How many messages one worker may hold unacked (default 1) |
-| `QUEUEWAY_RABBITMQ_MANAGEMENT_URL` | Where `queueway init` put the RabbitMQ management UI |
-| `QUEUEWAY_SQLITE_PATH`  | Override where the SQLite file lives     |
-| `QUEUEWAY_PORT`         | Dashboard/API port (default 4287)        |
-| `QUEUEWAY_SMTP_*`       | Mail settings for dashboard login emails |
+| Variable                           | What it's for                                             |
+| ---------------------------------- | --------------------------------------------------------- |
+| `QUEUEWAY_DATABASE_URL`            | PostgreSQL connection for the job store                   |
+| `QUEUEWAY_REDIS_URL`               | Redis connection for the broker                           |
+| `QUEUEWAY_RABBITMQ_URL`            | RabbitMQ connection for the broker                        |
+| `QUEUEWAY_RABBITMQ_PREFETCH`       | How many messages one worker may hold unacked (default 1) |
+| `QUEUEWAY_RABBITMQ_MANAGEMENT_URL` | Where `queueway init` put the RabbitMQ management UI      |
+| `QUEUEWAY_SQLITE_PATH`             | Override where the SQLite file lives                      |
+| `QUEUEWAY_PORT`                    | Dashboard/API port (default 4287)                         |
+| `QUEUEWAY_SMTP_*`                  | Mail settings for dashboard login emails                  |
 
 `DATABASE_URL` and `REDIS_URL` are among the most common names in Node
 projects and usually belong to **your** application. Queueway never writes
