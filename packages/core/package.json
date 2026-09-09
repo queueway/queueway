@@ -1,6 +1,6 @@
 {
   "name": "queueway",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "Queueway - Zero-Config Job Queue",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -21,7 +21,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node -e \"require('fs').cpSync('src/assets','dist/assets',{recursive:true})\"",
-    "prepublishOnly": "node -e \"const fs=require('fs'); const missing=['dist/index.js','public/index.html','README.md'].filter(f=>!fs.existsSync(f)); if(missing.length){console.error('❌ Missing: '+missing.join(', ')+' — run `npm run build` from the repo ROOT first (not just this folder), then try `npm publish` again.'); process.exit(1);} console.log('✅ Pre-publish check passed.');\"",
+    "prepublishOnly": "node -e \"const fs=require('fs'); const missing=['dist/index.js','public/index.html','README.md'].filter(f=>!fs.existsSync(f)); if(missing.length){console.error('\u274c Missing: '+missing.join(', ')+' \u2014 run `npm run build` from the repo ROOT first (not just this folder), then try `npm publish` again.'); process.exit(1);} console.log('\u2705 Pre-publish check passed.');\"",
     "test": "jest",
     "dev": "tsc -p tsconfig.build.json --watch",
     "lint": "eslint src"
@@ -32,31 +32,34 @@
   ],
   "author": "Syed Farrukh Ahmed",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "amqplib": "^0.10.0",
-    "pg": "^8.9.0",
-    "express": "^4.19.0",
-    "ioredis": "^5.3.2",
-    "sqlite3": "^5.1.0",
-    "inquirer": "^9.0.0",
-    "commander": "^11.0.0",
     "bcryptjs": "^2.4.3",
-    "nodemailer": "^6.9.13",
+    "commander": "^11.0.0",
     "cookie-parser": "^1.4.6",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "express": "^4.19.0",
+    "inquirer": "^8.2.7",
+    "ioredis": "^5.3.2",
+    "nodemailer": "^6.9.13",
+    "pg": "^8.9.0",
+    "sqlite3": "^5.1.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
     "@types/amqplib": "^0.10.1",
-    "@types/pg": "^8.10.0",
-    "@types/jest": "^29.5.0",
-    "@types/express": "^4.17.21",
-    "@types/inquirer": "^9.0.10",
     "@types/bcryptjs": "^2.4.6",
-    "@types/nodemailer": "^6.4.15",
     "@types/cookie-parser": "^1.4.7",
-    "typescript": "^5.0.0",
+    "@types/express": "^4.17.21",
+    "@types/inquirer": "^8.2.13",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@types/nodemailer": "^6.4.15",
+    "@types/pg": "^8.10.0",
     "jest": "^29.0.0",
-    "ts-jest": "^29.0.0"
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
   }
 }

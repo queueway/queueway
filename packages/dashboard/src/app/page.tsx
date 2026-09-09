@@ -50,6 +50,8 @@ interface ComponentHealth {
   status: 'up' | 'down';
   latency?: number;
   error?: string;
+  /** Which implementation is in use — 'redis', 'sqlite', 'in-memory', … */
+  type?: string;
 }
 
 interface Health {
@@ -61,6 +63,15 @@ interface Health {
     api: ComponentHealth;
   };
 }
+
+/** Friendlier names than the raw config values. */
+const BROKER_STORE_LABELS: Record<string, string> = {
+  'in-memory': 'In-Memory',
+  redis: 'Redis',
+  rabbitmq: 'RabbitMQ',
+  sqlite: 'SQLite',
+  postgres: 'PostgreSQL',
+};
 
 const statCards = [
   { key: 'pending', label: 'Pending', icon: Clock, color: 'text-amber-400' },
@@ -168,10 +179,25 @@ function DashboardContent({ userEmail, onLogout }: { userEmail: string | null; o
         return;
       }
 
-      setStats(await statsRes.json());
-      setJobs(await jobsRes.json());
-      setHealth(await healthRes.json());
-      setError(null);
+      // The API answers 503 with an error object when the database or broker
+      // is unreachable. Health still reports properly in that case, so keep
+      // showing it — assigning an error object where a list is expected is
+      // what used to take the whole page down.
+      const health = await healthRes.json().catch(() => null);
+      if (health) setHealth(health);
+
+      const statsBody = statsRes.ok ? await statsRes.json().catch(() => null) : null;
+      if (statsBody?.jobs) setStats(statsBody);
+
+      const jobsBody = jobsRes.ok ? await jobsRes.json().catch(() => null) : null;
+      setJobs(Array.isArray(jobsBody) ? jobsBody : []);
+
+      const storeDown = !statsRes.ok || !jobsRes.ok;
+      setError(
+        storeDown
+          ? 'The database or broker is unreachable. Queueway is retrying — job data will reappear once it is back.'
+          : null,
+      );
     } catch (err: any) {
       setError(err.message ?? 'Could not reach Queueway API');
     }
@@ -286,10 +312,8 @@ function DashboardContent({ userEmail, onLogout }: { userEmail: string | null; o
       </div>
 
       {error && (
-        <Card className="border-red-900 bg-red-950/30">
-          <CardContent className="p-4 text-sm text-red-400">
-            Could not reach Queueway API: {error} — make sure the core server is running.
-          </CardContent>
+        <Card className="border-amber-900 bg-amber-950/30">
+          <CardContent className="p-4 text-sm text-amber-400">{error}</CardContent>
         </Card>
       )}
 
@@ -303,7 +327,17 @@ function DashboardContent({ userEmail, onLogout }: { userEmail: string | null; o
               <Card key={key}>
                 <CardContent className="flex items-center justify-between p-3 sm:p-4">
                   <div>
-                    <div className="text-xs text-muted-foreground">{label}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{label}</span>
+                      {/* Which implementation this is. "Up" on its own doesn't
+                          say whether jobs survive a restart — the in-memory
+                          broker and a real Redis look identical without it. */}
+                      {c?.type && (
+                        <span className="rounded border border-border px-1.5 py-0 text-[10px] text-muted-foreground">
+                          {BROKER_STORE_LABELS[c.type] ?? c.type}
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-1 flex items-center gap-2 text-sm font-medium">
                       <Circle className={`h-2.5 w-2.5 ${isUp ? 'fill-emerald-400 text-emerald-400' : 'fill-red-400 text-red-400'}`} />
                       {isUp ? 'Up' : 'Down'}

@@ -3,6 +3,8 @@ import { Job, ComponentHealth } from "../types";
 import { logger } from "../logging/Logger";
 
 export class InMemoryBroker implements IBroker {
+  /** The queue lives in this process — when it dies, pending jobs die with it. */
+  readonly retainsPendingJobs = false;
   private handlers: Map<string, Array<(job: Job) => Promise<void>>> = new Map();
 
   async connect(): Promise<void> {

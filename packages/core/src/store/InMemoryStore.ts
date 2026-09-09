@@ -1,5 +1,5 @@
 import { IStore } from "./IStore";
-import { Job } from "../types";
+import { Job, RecoverOptions } from "../types";
 import { logger } from "../logging/Logger";
 
 /**
@@ -52,7 +52,7 @@ export class InMemoryStore implements IStore {
     return jobs;
   }
 
-  async recoverStuckJobs(): Promise<Job[]> {
+  async recoverStuckJobs(_options: RecoverOptions = {}): Promise<Job[]> {
     // Nothing to recover: if the process restarted, this Map started empty
     // this run — there's no "previous state" for an in-memory store to lose.
     return [];

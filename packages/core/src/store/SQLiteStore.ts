@@ -2,8 +2,9 @@ import sqlite3 from "sqlite3";
 import fs from "fs";
 import path from "path";
 import { IStore } from "./IStore";
-import { Job } from "../types";
+import { Job, RecoverOptions } from "../types";
 import { logger } from "../logging/Logger";
+import { sqlitePath } from "../config/env";
 
 /**
  * File-based store using SQLite — good for local dev / single-server
@@ -14,7 +15,7 @@ export class SQLiteStore implements IStore {
 
   constructor(filename?: string) {
     const dbPath =
-      filename ?? process.env.SQLITE_PATH ?? path.resolve(process.cwd(), ".queueway", "queueway.db");
+      filename ?? sqlitePath() ?? path.resolve(process.cwd(), ".queueway", "queueway.db");
     const dir = path.dirname(dbPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     this.db = new sqlite3.Database(dbPath);
@@ -129,8 +130,17 @@ export class SQLiteStore implements IStore {
     };
   }
 
-  async recoverStuckJobs(): Promise<Job[]> {
-    const stuckStatuses = ["pending", "processing", "retrying"];
+  async recoverStuckJobs(options: RecoverOptions = {}): Promise<Job[]> {
+    // A SQLite file is local to one machine, so there is only ever one
+    // worker — everything unfinished here really is ours to recover.
+    // includePending only turns false if someone pairs SQLite with an
+    // external broker that still holds the pending jobs itself.
+    // includeProcessing only turns false for a broker that redelivers unacked
+    // in-flight messages by itself (RabbitMQ) — recovering them here too would
+    // run the job twice.
+    const stuckStatuses = ["retrying"];
+    if (options.includeProcessing !== false) stuckStatuses.unshift("processing");
+    if (options.includePending !== false) stuckStatuses.unshift("pending");
     const placeholders = stuckStatuses.map(() => "?").join(",");
 
     return new Promise((resolve, reject) => {
